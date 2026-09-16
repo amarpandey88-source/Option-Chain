@@ -1,0 +1,137 @@
+{
+  "name": "option-chain-pulse",
+  "version": "1.0.0",
+  "description": "Real-time Indian index option chain analyzer with PCR, India VIX, smart-money flow, GEX, and multi-timeframe (5m/15m/30m) trade signals \u2014 for personal desktop trading use.",
+  "author": "Amar",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "next dev -p 3000 --webpack",
+    "build": "node scripts/clean-next.js && next build --webpack && node scripts/postbuild.js",
+    "start": "next start -p 3000",
+    "lint": "eslint .",
+    "postinstall": "prisma generate",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:reset": "prisma migrate reset",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron electron/main.js\"",
+    "electron:build": "node scripts/clean-next.js && next build --webpack && node scripts/postbuild.js",
+    "dist": "npm run electron:build && electron-builder --win --x64",
+    "dist:portable": "npm run electron:build && electron-builder --win portable --x64"
+  },
+  "build": {
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
+    "appId": "com.optionchainpulse.app",
+    "productName": "OptionChainPulse",
+    "directories": {
+      "output": "release",
+      "buildResources": "electron"
+    },
+    "files": [
+      ".next/**",
+      "public/**",
+      "prisma/**",
+      "electron/**",
+      "node_modules/**",
+      "node_modules/.prisma/**/*",
+      "node_modules/@prisma/client/**/*",
+      "next.config.ts",
+      "package.json",
+      ".env",
+      "!node_modules/electron",
+      "!node_modules/electron-builder",
+      "!node_modules/@parcel/watcher",
+      "!node_modules/prisma",
+      "!node_modules/typescript",
+      "!node_modules/eslint",
+      "!node_modules/eslint-config-next",
+      "!node_modules/@typescript-eslint",
+      "!node_modules/.bin",
+      "!node_modules/**/*.{md,map,ts}",
+      "!node_modules/**/{test,tests,docs,example,examples}/**"
+    ],
+    "asar": false,
+    "extraResources": [
+      {
+        "from": "db",
+        "to": "app/db"
+      },
+      {
+        "from": "node_modules/.prisma",
+        "to": "app/node_modules/.prisma"
+      },
+      {
+        "from": "node_modules/@prisma/client",
+        "to": "app/node_modules/@prisma/client"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.ico",
+      "artifactName": "OptionChainPulse-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Option Chain Pulse"
+    },
+    "portable": {
+      "artifactName": "OptionChainPulse-Portable-${version}.exe"
+    }
+  },
+  "dependencies": {
+    "@prisma/client": "^6.11.1",
+    "fyers-api-v3": "^2.1.0",
+    "@radix-ui/react-dialog": "^1.1.14",
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-popover": "^1.1.14",
+    "@radix-ui/react-progress": "^1.1.7",
+    "@radix-ui/react-scroll-area": "^1.2.9",
+    "@radix-ui/react-select": "^2.2.5",
+    "@radix-ui/react-slider": "^1.3.5",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-switch": "^1.2.5",
+    "@radix-ui/react-tabs": "^1.1.12",
+    "@tanstack/react-query": "^5.82.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.525.0",
+    "next": "^16.1.1",
+    "next-themes": "^0.4.6",
+    "prisma": "^6.11.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^2.15.4",
+    "sonner": "^2.0.6",
+    "tailwind-merge": "^3.3.1",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "bun-types": "^1.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "eslint": "^9",
+    "eslint-config-next": "^16.1.1",
+    "tailwindcss": "^4",
+    "tw-animate-css": "^1.3.5",
+    "typescript": "^5",
+    "wait-on": "^8.0.2"
+  }
+}

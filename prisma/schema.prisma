@@ -1,0 +1,78 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// binaryTargets is set explicitly because this app is *packaged for Windows*
+// but may well be built (npm install / prisma generate) on a different OS
+// (a Mac/Linux dev machine, a CI runner, etc). Without this, Prisma only
+// downloads the query-engine binary for whichever OS ran `prisma generate`
+// ("native") — so a build done anywhere other than Windows would ship a
+// Windows .exe with a non-Windows engine binary inside it. Every single
+// database call then fails at runtime (this is exactly what caused trade
+// journal entries to never save, 100% of the time, with no exceptions).
+// Listing both "native" (whatever machine builds it) and "windows"
+// (the actual target platform) guarantees the right binary is always
+// present, however/wherever the app gets built.
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TradeJournal {
+  id              String   @id @default(cuid())
+  alertId         String   @unique
+  symbol          String
+  action          String
+  optionType      String
+  strike          Int
+  entryPremium    Float
+  stopLoss        Float
+  target1         Float
+  target2         Float
+  target3         Float
+  entrySpot       Float
+  confidence      Int
+  sentiment       String
+  dataSource      String
+  // Market regime (TRENDING UP/DOWN, RANGEBOUND, VOLATILE) at the moment
+  // this trade was opened. Optional because trades logged before this field
+  // existed won't have it — the performance dashboard's regime breakdown
+  // simply excludes those older rows rather than guessing.
+  regime          String?
+  status          String   @default("OPEN")
+  exitSpot        Float?
+  exitPremium     Float?
+  pnlPerLot       Float?
+  totalPnl        Float?
+  pnlPercent      Float?
+  durationSec     Int?
+  rationale       String
+  exitReason      String?
+  openedAt        DateTime @default(now())
+  closedAt        DateTime?
+  @@index([symbol])
+  @@index([status])
+  @@index([openedAt])
+}
