@@ -857,7 +857,6 @@ export async function generateSnapshotBroker(symbol: Symbol, expiryOverride?: st
     spot, entry, delta: entryGreeks.delta, vix, daysToExpiry, isCall, support, resistance,
   });
 
-  co
   const smartSignal = computeSmartSignal({
     signals: ctx.signals,
     candidate: overallSignal.signal,
