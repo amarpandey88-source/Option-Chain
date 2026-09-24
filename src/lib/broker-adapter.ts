@@ -879,7 +879,7 @@ export async function generateSnapshotBroker(symbol: Symbol, expiryOverride?: st
     confidence: smartSignal.confidence,
     reasoning: [...overallSignal.reasoning, smartSignal.summary, ...smartSignal.blockers],
   };
-nst rec: TradeRecommendation = {
+const rec: TradeRecommendation = {
     action: finalSignal.signal, strike: entryStrike, optionType: overallSignal.signal === "BUY PE" ? "PE" : "CE",
     entry, stopLoss: sl, target1: t1, target2: t2, target3: t3, confidence: finalSignal.confidence, riskReward: rr,
     volume: volumeAtStrike, lowLiquidity, ltp: ltpAtStrike,
