@@ -13,6 +13,7 @@ const updates = [
       "Added Smart Signal panel with score, Bull/Bear edge, confidence, quality, factor breakdown and blockers.",
       "Added in-app Update button with automatic update checking, download progress and Restart & Update flow.",
       "Added Electron auto-update checks at startup and periodically while the app is running.",
+      "Fixed Windows build pipeline compatibility with GitHub Actions Node 24 by updating checkout, setup-node and upload-artifact actions.",
     ],
   },
 ];
