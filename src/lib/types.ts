@@ -1,3 +1,5 @@
+import type { SmartSignal } from "./smart-signal-engine";
+
 // ============================================================================
 // Option Chain Analyzer — Type Definitions
 // ============================================================================
@@ -152,4 +154,5 @@ export interface OptionChainSnapshot {
   sentiment: Sentiment;
   signalStability: SignalStability;
   candlePattern: { name: string; type: "bullish" | "bearish" | "neutral"; description: string } | null;
+  smartSignal: SmartSignal;
 }
