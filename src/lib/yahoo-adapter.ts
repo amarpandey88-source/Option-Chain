@@ -418,7 +418,7 @@ export function computeSignalContext(input: SignalContextInput): SignalContextRe
   return {
     signals: { "5min": s5, "15min": s15, "30min": s30 }, overallSignal, regime, sentiment,
     trendScore: ts, bullProb: bp, bankNiftyScore: bns, bankNiftyTrend: bnt,
-    candlePattern: pattern, smartSignal, signalStability,
+    candlePattern: pattern, signalStability,
   };
 }
 
