@@ -1,5 +1,6 @@
 import { OptionChainRow, OptionChainSnapshot, Regime, Sentiment, SignalStability, Symbol, Timeframe, TimeframeSignal, TradeAction, TradeRecommendation, ATMGreeks } from "./types";
 import { getDefaultExpiry, daysUntil } from "./expiry-utils";
+import { computeSmartSignal } from "./smart-signal-engine";
 
 // NOTE on lot sizes / strike steps: exchanges revise these periodically via
 // circular (NSE rebased index lot sizes for the Jan-2026 series; BSE raised
@@ -417,7 +418,7 @@ export function computeSignalContext(input: SignalContextInput): SignalContextRe
   return {
     signals: { "5min": s5, "15min": s15, "30min": s30 }, overallSignal, regime, sentiment,
     trendScore: ts, bullProb: bp, bankNiftyScore: bns, bankNiftyTrend: bnt,
-    candlePattern: pattern, signalStability,
+    candlePattern: pattern, smartSignal, signalStability,
   };
 }
 
@@ -733,9 +734,31 @@ export async function generateSnapshotYahoo(symbol: Symbol, expiryOverride?: str
     spot: quote.spot, entry, delta: entryDelta, vix: quote.vix, daysToExpiry, isCall, support, resistance,
   });
   const rec: TradeRecommendation = { action: os.signal, strike: entryStrike, optionType: os.signal === "BUY PE" ? "PE" : "CE", entry, stopLoss: sl, target1: t1, target2: t2, target3: t3, confidence: os.confidence, riskReward: rr, volume: volumeAtStrike, lowLiquidity, ltp: ltpAtStrike, rationale: os.signal === "WAIT" ? `Mixed signals. Real spot ${quote.spot.toFixed(2)} vs prev close ${quote.prevClose.toFixed(2)} (${((quote.spot - quote.prevClose) / quote.prevClose * 100).toFixed(2)}%). VIX ${quote.vix.toFixed(2)}.` : `Real spot ${quote.spot.toFixed(2)} (${((quote.spot - quote.prevClose) / quote.prevClose * 100).toFixed(2)}% vs prev close). ${os.timeframe} consensus ${os.signal} at ${os.confidence}%. RSI(5m) ${s5.rsi.toFixed(0)}, EMA ${s5.emaCross}. Smart flow ${smartFlow > 0 ? "+" : ""}${smartFlow}. Strike ${entryStrike} (${ITM_STRIKES_FOR_ENTRY} ITM of ATM ${atmStrike}) for higher delta. IV ${iv}%, ${daysToExpiry}d to expiry. Entry ₹${entry} (${usedRealLtp ? "real LTP" : "theoretical fair value — no real LTP yet"}). R:R 1:${rr}.${lowLiquidity ? ` ⚠ Low volume (${volumeAtStrike ?? 0}) at this strike.` : ""}`, expiry: expStr };
+  const smartSignal = computeSmartSignal({
+    signals: { "5min": s5, "15min": s15, "30min": s30 },
+    candidate: os.signal,
+    pcr: state.pcr,
+    smartFlow,
+    gex: gexM,
+    regime,
+    vix: quote.vix,
+    bankNiftyTrend: bnt,
+    symbol,
+    stability,
+    painShift: state.maxPain - state.prevMaxPain,
+    atmCeOiChg: atmRow.ceOiChg,
+    atmPeOiChg: atmRow.peOiChg,
+    sentiment,
+  });
+  const finalSignal = smartSignal.action === os.signal ? os : {
+    ...os,
+    signal: smartSignal.action,
+    confidence: smartSignal.confidence,
+    reasoning: [...os.reasoning, smartSignal.summary, ...smartSignal.blockers],
+  };
   const snapshot: OptionChainSnapshot = {
     metrics: { symbol, spot: Number(quote.spot.toFixed(2)), prevSpot: Number(quote.prevClose.toFixed(2)), pcr: state.pcr, indiaVix: Number(quote.vix.toFixed(2)), vixStatus: vs, smartFlow, smartFlowAvailable: true, maxPain: state.maxPain, prevMaxPain: state.prevMaxPain, painShift: state.maxPain - state.prevMaxPain, gex: gexM, gammaFlip, trendScore: ts, bullProb: bp, bearProb: 100 - bp, bankNiftyScore: bns, bankNiftyTrend: bnt, support, resistance, regime, updatedAt: new Date().toISOString(), atmStrike },
-    greeks, signals: { "5min": s5, "15min": s15, "30min": s30 }, overallSignal: os, recommendation: rec, chain: state.chain.map(r => ({ ...r })), history: { spot: [...state.spotHistory], pcr: [...state.pcrHistory], vix: [...state.vixHistory] }, sentiment, signalStability: stability, candlePattern: pattern,
+    greeks, signals: { "5min": s5, "15min": s15, "30min": s30 }, overallSignal: finalSignal, recommendation: { ...rec, action: finalSignal.signal, confidence: finalSignal.confidence, rationale: `${rec.rationale} ${smartSignal.summary}` }, chain: state.chain.map(r => ({ ...r })), history: { spot: [...state.spotHistory], pcr: [...state.pcrHistory], vix: [...state.vixHistory] }, sentiment, signalStability: stability, candlePattern: pattern,
   };
   cache[cacheKey] = { ts: Date.now(), data: snapshot }; return snapshot;
 }

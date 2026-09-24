@@ -19,7 +19,7 @@
 // identically in `npm run electron:dev` and in the packaged Windows .exe.
 // ============================================================================
 
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage, Notification, dialog } = require("electron");
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, Notification, dialog, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
@@ -28,6 +28,7 @@ const http = require("http");
 let mainWindow = null;
 let httpServer = null;
 let tray = null;
+let updateDownloaded = false;
 // Set true only by the tray menu's "Quit" item (or OS-level app.quit()) —
 // distinguishes "user clicked the window's X button" (hide to tray, keep
 // watching the market in the background) from "user actually wants to
@@ -182,27 +183,40 @@ function setupAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
+  const sendUpdateStatus = (status, extra = {}) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send("ocp:update-status", { status, ...extra });
+    }
+  };
+
   autoUpdater.on("checking-for-update", () => {
     console.log("[auto-updater] Checking for update...");
+    sendUpdateStatus("checking");
   });
 
   autoUpdater.on("update-available", (info) => {
     console.log(`[auto-updater] Update available: v${info.version} — downloading in background.`);
+    sendUpdateStatus("available", { version: info.version });
   });
 
   autoUpdater.on("update-not-available", () => {
     console.log("[auto-updater] No update available — already on the latest version.");
+    sendUpdateStatus("up-to-date", { version: app.getVersion() });
   });
 
   autoUpdater.on("error", (err) => {
     console.error("[auto-updater] Error while checking/downloading update:", err);
+    sendUpdateStatus("error", { message: String(err?.message || err) });
   });
 
   autoUpdater.on("download-progress", (progress) => {
     console.log(`[auto-updater] Downloading update... ${progress.percent.toFixed(1)}%`);
+    sendUpdateStatus("downloading", { percent: Math.round(progress.percent), version: autoUpdater.updateInfo?.version ?? null });
   });
 
   autoUpdater.on("update-downloaded", (info) => {
+    updateDownloaded = true;
+    sendUpdateStatus("downloaded", { version: info.version });
     console.log(`[auto-updater] Update v${info.version} downloaded — prompting for restart.`);
     dialog
       .showMessageBox(mainWindow, {
@@ -237,6 +251,30 @@ function setupAutoUpdater() {
 }
 
 // ---------------------------------------------------------------------------
+// Renderer <-> main-process update controls
+// ---------------------------------------------------------------------------
+ipcMain.handle("ocp:update-check", async () => {
+  if (!app.isPackaged) {
+    return { ok: false, status: "dev", message: "Updates are available only in the packaged Windows app." };
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+    return { ok: true, status: "checking", version: app.getVersion() };
+  } catch (err) {
+    const message = String(err?.message || err);
+    return { ok: false, status: "error", message };
+  }
+});
+
+ipcMain.handle("ocp:update-install", async () => {
+  if (!app.isPackaged) return { ok: false, status: "dev" };
+  if (!updateDownloaded) return { ok: false, status: "not-ready" };
+  updateDownloaded = false;
+  autoUpdater.quitAndInstall();
+  return { ok: true, status: "installing" };
+});
+
+// ---------------------------------------------------------------------------
 // Create the main application window
 // ---------------------------------------------------------------------------
 function createWindow() {
@@ -251,6 +289,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, "preload.js"),
     },
     // Show as a proper desktop window
     autoHideMenuBar: true,

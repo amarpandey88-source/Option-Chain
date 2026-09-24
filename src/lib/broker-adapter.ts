@@ -25,6 +25,7 @@ import { generateSnapshotYahoo, computeGreeks, computeOptionPremium, pickTradeLe
 import { fetchFyersMarketData } from "./fyers-market-data";
 import { getDefaultExpiry, daysUntil } from "./expiry-utils";
 import { randomUUID, createHash } from "node:crypto";
+import { computeSmartSignal } from "./smart-signal-engine";
 import https from "node:https";
 
 // Node's built-in fetch() refuses to send a body on a GET request (it
@@ -856,9 +857,31 @@ export async function generateSnapshotBroker(symbol: Symbol, expiryOverride?: st
     spot, entry, delta: entryGreeks.delta, vix, daysToExpiry, isCall, support, resistance,
   });
 
-  const rec: TradeRecommendation = {
-    action: overallSignal.signal, strike: entryStrike, optionType: overallSignal.signal === "BUY PE" ? "PE" : "CE",
-    entry, stopLoss: sl, target1: t1, target2: t2, target3: t3, confidence: overallSignal.confidence, riskReward: rr,
+  const smartSignal = computeSmartSignal({
+    signals: ctx.signals,
+    candidate: overallSignal.signal,
+    pcr: cm.pcr,
+    smartFlow: cm.smartFlow,
+    gex: cm.gex,
+    regime: ctx.regime,
+    vix,
+    bankNiftyTrend: ctx.bankNiftyTrend,
+    symbol,
+    stability: ctx.signalStability,
+    painShift: cm.maxPain - (yahooBase?.metrics.maxPain ?? fyersPrevMaxPain ?? cm.maxPain),
+    atmCeOiChg: atmRow.ceOiChg,
+    atmPeOiChg: atmRow.peOiChg,
+    sentiment: ctx.sentiment,
+  });
+  const finalSignal = smartSignal.action === overallSignal.signal ? overallSignal : {
+    ...overallSignal,
+    signal: smartSignal.action,
+    confidence: smartSignal.confidence,
+    reasoning: [...overallSignal.reasoning, smartSignal.summary, ...smartSignal.blockers],
+  };
+nst rec: TradeRecommendation = {
+    action: finalSignal.signal, strike: entryStrike, optionType: overallSignal.signal === "BUY PE" ? "PE" : "CE",
+    entry, stopLoss: sl, target1: t1, target2: t2, target3: t3, confidence: finalSignal.confidence, riskReward: rr,
     volume: volumeAtStrike, lowLiquidity, ltp: ltpAtStrike,
     rationale: `${fyersReal ? "Real (Fyers) spot" : "Real spot"} ${spot.toFixed(2)} (${((spot - prevSpot) / prevSpot * 100).toFixed(2)}%). ${overallSignal.signal} at ${overallSignal.confidence}%. PCR ${cm.pcr} (real OI). Max Pain ${cm.maxPain}.${oiChangeAvailable ? ` Smart Flow ${cm.smartFlow > 0 ? "+" : ""}${cm.smartFlow} (self-computed from live OI change).` : ""} Strike ${entryStrike} (${ITM_STRIKES_FOR_ENTRY} ITM of ATM ${atmStrike}) for higher delta. Real IV ${entryIv}%, ${daysToExpiry}d to expiry, delta ${entryGreeks.delta}. Entry ₹${entry} (${usedRealLtp ? "real LTP" : "theoretical fair value — no real LTP available yet"}). R:R 1:${rr}.${lowLiquidity ? ` ⚠ Low volume (${volumeAtStrike ?? "N/A"}) at this strike — real OI, but thin trading today.` : ""}`,
     expiry: expStr,
@@ -875,9 +898,9 @@ export async function generateSnapshotBroker(symbol: Symbol, expiryOverride?: st
       bankNiftyTrend: ctx.bankNiftyTrend, support, resistance, regime,
       updatedAt: new Date().toISOString(), atmStrike,
     },
-    greeks, signals: ctx.signals, overallSignal, recommendation: rec,
+    greeks, signals: ctx.signals, overallSignal: finalSignal, recommendation: rec,
     chain, history: { spot: ctx.spotHistory, pcr: pcrHistory, vix: ctx.vixHistory }, sentiment: ctx.sentiment,
     signalStability: ctx.signalStability,
-    candlePattern: ctx.candlePattern,
+    candlePattern: ctx.candlePattern, smartSignal,
   };
 }
