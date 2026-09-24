@@ -758,7 +758,7 @@ export async function generateSnapshotYahoo(symbol: Symbol, expiryOverride?: str
   };
   const snapshot: OptionChainSnapshot = {
     metrics: { symbol, spot: Number(quote.spot.toFixed(2)), prevSpot: Number(quote.prevClose.toFixed(2)), pcr: state.pcr, indiaVix: Number(quote.vix.toFixed(2)), vixStatus: vs, smartFlow, smartFlowAvailable: true, maxPain: state.maxPain, prevMaxPain: state.prevMaxPain, painShift: state.maxPain - state.prevMaxPain, gex: gexM, gammaFlip, trendScore: ts, bullProb: bp, bearProb: 100 - bp, bankNiftyScore: bns, bankNiftyTrend: bnt, support, resistance, regime, updatedAt: new Date().toISOString(), atmStrike },
-    greeks, signals: { "5min": s5, "15min": s15, "30min": s30 }, overallSignal: finalSignal, recommendation: { ...rec, action: finalSignal.signal, confidence: finalSignal.confidence, rationale: `${rec.rationale} ${smartSignal.summary}` }, chain: state.chain.map(r => ({ ...r })), history: { spot: [...state.spotHistory], pcr: [...state.pcrHistory], vix: [...state.vixHistory] }, sentiment, signalStability: stability, candlePattern: pattern,
+    greeks, signals: { "5min": s5, "15min": s15, "30min": s30 }, overallSignal: finalSignal, recommendation: { ...rec, action: finalSignal.signal, confidence: finalSignal.confidence, rationale: `${rec.rationale} ${smartSignal.summary}` }, chain: state.chain.map(r => ({ ...r })), history: { spot: [...state.spotHistory], pcr: [...state.pcrHistory], vix: [...state.vixHistory] }, sentiment, signalStability: stability, candlePattern: pattern, smartSignal,
   };
   cache[cacheKey] = { ts: Date.now(), data: snapshot }; return snapshot;
 }
