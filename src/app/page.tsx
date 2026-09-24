@@ -29,6 +29,7 @@ import { OptionChainSnapshot, Symbol, Timeframe, TradeRecommendation } from "@/l
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SmartSignalPanel } from "@/components/option-chain/smart-signal-panel";
 import { isPastNewEntryCutoff } from "@/lib/market-hours";
 
 function overallSignalAction(snap: OptionChainSnapshot): "BUY CE" | "BUY PE" | null {
@@ -547,6 +548,12 @@ export default function Home() {
             </div>
           </div>
           <TabsContent value="overview" className="space-y-5 mt-4">
+        {/* AI / Smart Signal Engine */}
+        <section>
+          <SectionTitle title="AI / Smart Signal" subtitle="Explainable multi-factor confirmation layer over the existing 5m / 15m / 30m signal engine" />
+          <div className="mt-3"><SmartSignalPanel smart={data.smartSignal} /></div>
+        </section>
+
         {/* Metrics grid */}
         <section>
           <SectionTitle title="Key Metrics" subtitle="Real-time PCR, VIX, smart flow & Greeks-based market read" />
