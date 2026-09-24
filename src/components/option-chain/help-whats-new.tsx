@@ -14,6 +14,7 @@ const updates = [
       "Added in-app Update button with automatic update checking, download progress and Restart & Update flow.",
       "Added Electron auto-update checks at startup and periodically while the app is running.",
       "Fixed Windows build pipeline compatibility with GitHub Actions Node 24 by updating checkout, setup-node and upload-artifact actions.",
+      "Fixed a TypeScript build issue in the Yahoo data path so the Smart Signal remains attached to the final snapshot without leaking into SignalContextResult.",
     ],
   },
 ];
