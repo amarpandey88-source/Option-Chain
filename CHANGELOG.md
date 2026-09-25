@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-09-25
+- Restored a visible app guide inside Help & What's New explaining data modes, Smart Signal logic, trade-entry filters, risk guards, and exit conditions
+
 ## [1.0.6] - 2026-09-25
 - Added a celebration sound when a winning trade reaches Target 1, respecting the existing alert sound setting
 

@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import {
-  Activity, CalendarDays, CheckCircle2, CircleHelp, Download, LayoutDashboard,
-  Search, ShieldCheck, Sparkles, Target, Wrench, X,
+  Activity, BookOpen, BrainCircuit, CalendarDays, CheckCircle2, CircleHelp, Download,
+  LayoutDashboard, Search, ShieldCheck, Sparkles, Target, Wrench, X,
 } from "lucide-react";
 
 const updates = [
   {
-    version: "v1.0.5",
+    version: "v1.0.7",
     date: "24 Sep 2026",
-    title: "Smarter Signals + Smoother Updates",
+    title: "Smarter Help + Trading Guide",
     items: [
       "Added explainable Smart Signal Engine using multi-timeframe consensus, momentum, VWAP, PCR, OI flow, GEX, smart flow, regime, cross-market context and signal stability.",
       "Added Smart Signal panel with score, Bull/Bear edge, confidence, quality, factor breakdown and blockers.",
@@ -32,6 +32,40 @@ const itemIcons = [
   Target, Activity, Download, CheckCircle2, Wrench, ShieldCheck,
   ShieldCheck, Sparkles, LayoutDashboard, Download, Wrench,
 ];
+
+const appGuide = [
+  {
+    icon: Activity,
+    title: "Real market read",
+    text: "Broker mode uses real option-chain OI, PCR, Max Pain, GEX and VIX. NSE mode is view-only: spot/VIX are real, while option-chain values are estimated.",
+    tone: "cyan",
+  },
+  {
+    icon: BrainCircuit,
+    title: "Smart Signal engine",
+    text: "5m, 15m and 30m signals combine with momentum, VWAP, PCR, OI flow, GEX, regime, cross-market context and stability into BUY CE, BUY PE or WAIT.",
+    tone: "amber",
+  },
+  {
+    icon: Target,
+    title: "When a trade fires",
+    text: "The alert must pass the configured confidence threshold (default 78%), minimum risk:reward, liquidity, stable-signal and optional timeframe-agreement checks. Daily limits, one-trade-at-a-time, rangebound, loss cool-off and 3:15 PM IST cutoff can block it.",
+    tone: "emerald",
+  },
+  {
+    icon: ShieldCheck,
+    title: "How it exits",
+    text: "The suggested option is tracked with live ticks when available. It exits at Target 1 (default 1:2 RR), stop-loss, breakeven stop, or the 3:15 PM IST end-of-day square-off.",
+    tone: "violet",
+  },
+];
+
+const guideToneClasses: Record<string, string> = {
+  cyan: "border-cyan-500/20 bg-cyan-500/5 text-cyan-300",
+  amber: "border-amber-500/20 bg-amber-500/5 text-amber-300",
+  emerald: "border-emerald-500/20 bg-emerald-500/5 text-emerald-300",
+  violet: "border-violet-500/20 bg-violet-500/5 text-violet-300",
+};
 
 export function HelpWhatsNew() {
   const [open, setOpen] = useState(false);
@@ -108,6 +142,23 @@ export function HelpWhatsNew() {
             </div>
 
             <div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              <section className="mb-5 rounded-xl border border-[#263445] bg-[#0f1620] p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-300"><BookOpen className="h-4 w-4" /></span>
+                  <div>
+                    <h2 className="font-semibold text-slate-100">How Option Chain Pulse works</h2>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500">A quick guide to the data, signal logic and trade safeguards.</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {appGuide.map(({ icon: Icon, title, text, tone }) => (
+                    <div key={title} className={`rounded-lg border p-3 ${guideToneClasses[tone]}`}>
+                      <div className="flex items-center gap-2 text-xs font-semibold"><Icon className="h-3.5 w-3.5" />{title}</div>
+                      <p className="mt-1.5 text-[12px] leading-relaxed text-slate-400">{text}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
               {updates.map((update) => (
                 <section key={update.version} className="rounded-xl border border-[#263445] bg-[#0f1620] p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">

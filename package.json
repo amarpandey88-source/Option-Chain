@@ -1,6 +1,6 @@
 {
   "name": "option-chain-pulse",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Real-time Indian index option chain analyzer with PCR, India VIX, smart-money flow, GEX, and multi-timeframe (5m/15m/30m) trade signals — for personal desktop trading use.",
   "author": "Amar",
   "private": true,
