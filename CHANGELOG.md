@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-09-25
+- Fixed the Check for Updates button overlapping the header controls by moving it into the responsive toolbar
+
 ## [1.0.3] - 2026-09-25
 - Added a dedicated Smart Signal tab for focused signal analysis
 - Added automatic update checking and background download support for Windows

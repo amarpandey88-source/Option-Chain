@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { AlertManager, AlertConfig, AlertEvent } from "./alert-manager";
 import { ApiKeysDialog } from "./api-keys-dialog";
 import { HelpDialog } from "./help-dialog";
+import { UpdateButton } from "./update-button";
 
 interface SentimentHeaderProps {
   symbol: Symbol; onSymbolChange: (s: Symbol) => void;
@@ -127,6 +128,7 @@ export function SentimentHeader({
               <RefreshCw className={cn("h-3.5 w-3.5 mr-1", isRefreshing && "animate-spin")} />Refresh
             </Button>
 
+            <UpdateButton />
             <HelpDialog />
           </div>
         </div>

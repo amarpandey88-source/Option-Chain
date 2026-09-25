@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { Providers } from "@/components/providers";
-import { UpdateButton } from "@/components/option-chain/update-button";
 import { HelpWhatsNew } from "@/components/option-chain/help-whats-new";
 
 const geistSans = Geist({
@@ -47,7 +46,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0a0e14] text-slate-100`}
       >
-        <Providers><div className="relative min-h-screen">{children}<div className="fixed right-4 top-3 z-[100]"><UpdateButton /></div><HelpWhatsNew /></div></Providers>
+        <Providers><div className="relative min-h-screen">{children}<HelpWhatsNew /></div></Providers>
         <SonnerToaster position="top-right" theme="dark" toastOptions={{ style: { background: "#0f1620", border: "1px solid #1c2530", color: "#e2e8f0" } }} />
       </body>
     </html>

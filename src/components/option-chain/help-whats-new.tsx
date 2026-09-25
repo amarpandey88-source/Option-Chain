@@ -19,6 +19,7 @@ const updates = [
       "Added repository-wide GitHub Copilot instructions so Copilot/AI agents preserve trading logic, Smart Signal, Windows packaging, security and the mandatory Help & What's New workflow.",
       "Moved the AI / Smart Signal Engine into its own top-level tab beside Dashboard and Option Chain for a cleaner dashboard view.",
       "Version 1.0.3: dedicated AI / Smart Signal tab release; the version bump ensures installed builds can detect this update through the Electron auto-updater.",
+      "Moved Check for Updates into the responsive header toolbar so it no longer overlaps other controls.",
     ],
   },
 ];
