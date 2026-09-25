@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-09-25
+- Refreshed Help & What's New with release summaries, searchable updates, clearer status signals, and responsive presentation
+
 ## [1.0.4] - 2026-09-25
 - Fixed the Check for Updates button overlapping the header controls by moving it into the responsive toolbar
 
