@@ -20,9 +20,11 @@ exact same thing.
 Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
-- (add changes here as you make them — this section is what shows while a
-  version is still in progress; move its contents under a dated version
-  heading when you publish)
+
+## [1.0.3] - 2026-09-25
+- Added a dedicated Smart Signal tab for focused signal analysis
+- Added automatic update checking and background download support for Windows
+- Documented the Smart Signal and update changes in Help -> What's New
 
 ## [1.0.1] - YYYY-MM-DD
 <!-- fill in the real release date above -->
