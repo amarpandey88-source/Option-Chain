@@ -24,6 +24,7 @@ const updates = [
       "Version 1.0.3: dedicated AI / Smart Signal tab release; the version bump ensures installed builds can detect this update through the Electron auto-updater.",
       "Moved Check for Updates into the responsive header toolbar so it no longer overlaps other controls.",
       "Added a short celebration sound when a winning trade reaches Target 1.",
+      "Background trade monitoring now requires a configured broker and never creates candidates from estimated NSE/Yahoo data.",
     ],
   },
 ];

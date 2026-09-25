@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-09-25
+- Made background trade monitoring broker-only so estimated NSE/Yahoo data can never create trade candidates
+
 ## [1.0.7] - 2026-09-25
 - Restored a visible app guide inside Help & What's New explaining data modes, Smart Signal logic, trade-entry filters, risk guards, and exit conditions
 

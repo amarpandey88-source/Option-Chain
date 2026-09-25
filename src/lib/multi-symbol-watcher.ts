@@ -285,6 +285,20 @@ async function getTodayStatsForSymbol(symbol: Symbol): Promise<{ count: number; 
 }
 
 async function tick() {
+  // The watcher is a trade-alert path, so estimated Yahoo/NSE data must never
+  // be allowed to create an entry. The dashboard can still use NSE mode for
+  // view-only analysis, but background monitoring requires a real broker feed.
+  if (!isBrokerConfigured()) {
+    for (const symbol of ALL_SYMBOLS) {
+      status[symbol] = {
+        ...status[symbol],
+        lastCheckedAt: Date.now(),
+        error: "Broker data required for background trade monitoring",
+      };
+    }
+    return;
+  }
+
   // Collected first, fired after the loop — see the note below on why
   // firing isn't done inline per-symbol anymore.
   const fireCandidates: { symbol: Symbol; snapshot: OptionChainSnapshot; dataSourceLabel: string }[] = [];
@@ -293,11 +307,9 @@ async function tick() {
     if (currentlyHandsOff(symbol)) continue;
     try {
       const { generateSnapshotBroker } = await import("./broker-adapter");
-      const { generateSnapshotYahoo } = await import("./yahoo-adapter");
       const { getConfiguredBroker } = await import("./broker-adapter");
-      const brokerMode = isBrokerConfigured();
-      const snapshot = brokerMode ? await generateSnapshotBroker(symbol) : await generateSnapshotYahoo(symbol);
-      const dataSourceLabel = brokerMode ? `broker-${getConfiguredBroker()}` : "nse";
+      const snapshot = await generateSnapshotBroker(symbol);
+      const dataSourceLabel = `broker-${getConfiguredBroker()}`;
 
       status[symbol] = {
         ...status[symbol], lastCheckedAt: Date.now(),
