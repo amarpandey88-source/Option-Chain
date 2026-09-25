@@ -104,7 +104,7 @@ export default function Home() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [activeTab, setActiveTab] = useState<Timeframe>("5min");
-  const [mainView, setMainView] = useState<"overview" | "chain">("overview");
+  const [mainView, setMainView] = useState<"overview" | "chain" | "smart">("overview");
   const [brokerConfigured, setBrokerConfigured] = useState(false);
   const [brokerProvider, setBrokerProvider] = useState<string | null>(null);
   const [brokerCheckNonce, setBrokerCheckNonce] = useState(0);
@@ -536,11 +536,12 @@ export default function Home() {
             <span><strong>View only.</strong> Spot price & VIX are real (Yahoo Finance), but OI/PCR/Max Pain here are estimated, not from a real option chain. Trade alerts are disabled in this mode — switch to Broker for real OI data + alerts.</span>
           </div>
         )}
-        <Tabs value={mainView} onValueChange={v => setMainView(v as "overview" | "chain")}>
+        <Tabs value={mainView} onValueChange={v => setMainView(v as "overview" | "chain" | "smart")}>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <TabsList className="bg-[#0f1620] border border-[#1c2530]">
               <TabsTrigger value="overview" className="data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-400 text-slate-400">Dashboard</TabsTrigger>
               <TabsTrigger value="chain" className="data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-400 text-slate-400">Option Chain</TabsTrigger>
+              <TabsTrigger value="smart" className="data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-400 text-slate-400">AI / Smart Signal</TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
               <PerformanceDashboard symbol={symbol} />
@@ -548,12 +549,6 @@ export default function Home() {
             </div>
           </div>
           <TabsContent value="overview" className="space-y-5 mt-4">
-        {/* AI / Smart Signal Engine */}
-        <section>
-          <SectionTitle title="AI / Smart Signal" subtitle="Explainable multi-factor confirmation layer over the existing 5m / 15m / 30m signal engine" />
-          <div className="mt-3"><SmartSignalPanel smart={data.smartSignal} /></div>
-        </section>
-
         {/* Metrics grid */}
         <section>
           <SectionTitle title="Key Metrics" subtitle="Real-time PCR, VIX, smart flow & Greeks-based market read" />
@@ -708,6 +703,13 @@ export default function Home() {
             <CandlePatternCard pattern={data.candlePattern} />
           </div>
         </section>
+          </TabsContent>
+
+          <TabsContent value="smart" className="mt-4">
+            <section>
+              <SectionTitle title="AI / Smart Signal Engine" subtitle="Explainable multi-factor confirmation layer over the existing 5m / 15m / 30m signal engine" />
+              <div className="mt-3"><SmartSignalPanel smart={data.smartSignal} /></div>
+            </section>
           </TabsContent>
 
           <TabsContent value="chain" className="mt-4 space-y-5">
