@@ -18,6 +18,7 @@ const updates = [
       "Fixed the remaining TypeScript build error by adding smartSignal to the Yahoo OptionChainSnapshot object; this was blocking Windows EXE packaging.",
       "Added repository-wide GitHub Copilot instructions so Copilot/AI agents preserve trading logic, Smart Signal, Windows packaging, security and the mandatory Help & What's New workflow.",
       "Moved the AI / Smart Signal Engine into its own top-level tab beside Dashboard and Option Chain for a cleaner dashboard view.",
+      "Version 1.0.3: dedicated AI / Smart Signal tab release; the version bump ensures installed builds can detect this update through the Electron auto-updater.",
     ],
   },
 ];
