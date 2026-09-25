@@ -135,7 +135,7 @@ export default function Home() {
 
   const [alertConfig, setAlertConfig] = useAlertConfig();
   const [lastAlert, setLastAlert] = useState<AlertEvent | null>(null);
-  const { play: playAlertSound, preview: previewSound } = useAlertSound(alertConfig.soundEnabled);
+  const { play: playAlertSound, preview: previewSound, celebrate: playWinSound } = useAlertSound(alertConfig.soundEnabled);
   const [activeTrade, setActiveTrade] = useState<{
     id: string; openedAt: number; action: "BUY CE" | "BUY PE"; strike: number;
     entryPremium: number; stopLossPremium: number; target1Premium: number; target2Premium: number; target3Premium: number;
@@ -487,9 +487,9 @@ export default function Home() {
       // pickTradeLevels in yahoo-adapter.ts) — every trade that fires is
       // designed to exit right here, not run further hoping for T2/T3.
       const action = activeTrade.action, strike = activeTrade.strike, price = currentPremium;
-      queueMicrotask(() => { toast.success(`Target 1 hit on ${action} ${strike}! (1:2 RR)`, { description: `Exited at ~${price.toFixed(0)}`, duration: 8000 }); updateJournal("TARGET1_HIT", `Target 1 hit at premium ${price.toFixed(0)} (1:2 risk:reward)`, price, currentSpot); sendTelegramExit("🎯", `Target hit: ${action} ${strike}`, `Exited at ~₹${price.toFixed(0)} (1:2 RR)`); notifyDesktop(`Target hit: ${action} ${strike}`, `Exited at ~₹${price.toFixed(0)} (1:2 RR)`); setActiveTrade(null); });
+      queueMicrotask(() => { playWinSound(); toast.success(`Target 1 hit on ${action} ${strike}! (1:2 RR)`, { description: `Exited at ~${price.toFixed(0)}`, duration: 8000 }); updateJournal("TARGET1_HIT", `Target 1 hit at premium ${price.toFixed(0)} (1:2 risk:reward)`, price, currentSpot); sendTelegramExit("🎯", `Target hit: ${action} ${strike}`, `Exited at ~₹${price.toFixed(0)} (1:2 RR)`); notifyDesktop(`Target hit: ${action} ${strike}`, `Exited at ~₹${price.toFixed(0)} (1:2 RR)`); setActiveTrade(null); });
     }
-  }, [data, activeTrade, liveLtp, sendTelegramExit, notifyDesktop]);
+  }, [data, activeTrade, liveLtp, sendTelegramExit, notifyDesktop, playWinSound]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "r" || e.key === "R") handleRefresh(); };

@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-09-25
+- Added a celebration sound when a winning trade reaches Target 1, respecting the existing alert sound setting
+
 ## [1.0.5] - 2026-09-25
 - Refreshed Help & What's New with release summaries, searchable updates, clearer status signals, and responsive presentation
 

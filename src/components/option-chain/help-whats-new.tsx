@@ -23,6 +23,7 @@ const updates = [
       "Moved the AI / Smart Signal Engine into its own top-level tab beside Dashboard and Option Chain for a cleaner dashboard view.",
       "Version 1.0.3: dedicated AI / Smart Signal tab release; the version bump ensures installed builds can detect this update through the Electron auto-updater.",
       "Moved Check for Updates into the responsive header toolbar so it no longer overlaps other controls.",
+      "Added a short celebration sound when a winning trade reaches Target 1.",
     ],
   },
 ];
