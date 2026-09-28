@@ -8,6 +8,16 @@ import {
 
 const updates = [
   {
+    version: "v1.0.9",
+    date: "28 Sep 2026",
+    title: "Trade Journal date filter",
+    items: [
+      "Added a custom date range filter to the Trade Journal for selecting a specific reporting window.",
+      "Kept the journal filters aligned with the live backend so custom date ranges reflect the same trade set shown in the table and summary stats.",
+      "Bumped the app version to trigger a new update prompt for users still on 1.0.8.",
+    ],
+  },
+  {
     version: "v1.0.8",
     date: "28 Sep 2026",
     title: "Broker-safe background monitoring",

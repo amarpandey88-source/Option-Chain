@@ -21,6 +21,10 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-09-28
+- Added a custom date range filter to the Trade Journal for selective historical review
+- Bumped the app version to trigger a real update prompt for users still on 1.0.8
+
 ## [1.0.8] - 2026-09-28
 - Made background trade monitoring broker-only so estimated NSE/Yahoo data can never create trade candidates
 
