@@ -8,6 +8,16 @@ import {
 
 const updates = [
   {
+    version: "v1.0.10",
+    date: "28 Sep 2026",
+    title: "Release metadata fix",
+    items: [
+      "Published a clean Windows installer release with the required GitHub updater metadata so update checks can find the latest artifact correctly.",
+      "Added a custom date range filter to the Trade Journal for selecting a specific reporting window.",
+      "Kept the app release version aligned so users on 1.0.8/1.0.9 receive a real update prompt.",
+    ],
+  },
+  {
     version: "v1.0.9",
     date: "28 Sep 2026",
     title: "Trade Journal date filter",
