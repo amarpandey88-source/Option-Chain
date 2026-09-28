@@ -8,6 +8,16 @@ import {
 
 const updates = [
   {
+    version: "v1.0.8",
+    date: "28 Sep 2026",
+    title: "Broker-safe background monitoring",
+    items: [
+      "Made background trade monitoring broker-only so estimated NSE/Yahoo data can never create trade candidates.",
+      "Tightened the monitoring safety checks to prevent estimated market snapshots from triggering live alert workflows.",
+      "Preserved existing Smart Signal, Trade Journal and option-chain behavior while closing the data-quality gap that allowed false background entries.",
+    ],
+  },
+  {
     version: "v1.0.7",
     date: "24 Sep 2026",
     title: "Smarter Help + Trading Guide",
@@ -25,6 +35,8 @@ const updates = [
       "Moved Check for Updates into the responsive header toolbar so it no longer overlaps other controls.",
       "Added a short celebration sound when a winning trade reaches Target 1.",
       "Background trade monitoring now requires a configured broker and never creates candidates from estimated NSE/Yahoo data.",
+      "Trade Journal LTP now stays live from the exact option tick stream, and becomes ₹0.00 after the contract expires.",
+      "Added a custom start and end date filter to the Trade Journal.",
     ],
   },
 ];
