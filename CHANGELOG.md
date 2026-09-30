@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.11] - 2026-09-30
+- Display the current app version beside the app name in the dashboard header
+
 ## [1.0.10] - 2026-09-28
 - Fixed the release packaging flow by publishing a clean Windows installer release with the required GitHub updater metadata
 - Added the Trade Journal custom date range filter for selective historical review

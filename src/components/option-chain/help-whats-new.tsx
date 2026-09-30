@@ -8,6 +8,14 @@ import {
 
 const updates = [
   {
+    version: "v1.0.11",
+    date: "30 Sep 2026",
+    title: "App version in header",
+    items: [
+      "Show the currently running app version beside Option Chain Pulse in the dashboard header.",
+    ],
+  },
+  {
     version: "v1.0.10",
     date: "28 Sep 2026",
     title: "Release metadata fix",

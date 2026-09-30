@@ -55,6 +55,17 @@ export function SentimentHeader({
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/version", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data: { version?: string }) => {
+        if (!cancelled && data.version && data.version !== "unknown") setAppVersion(data.version);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const secsAgo = Math.max(0, Math.round((nowTick - new Date(updatedAt).getTime()) / 1000));
   const agoLabel = secsAgo < 60 ? `${secsAgo}s ago` : `${Math.floor(secsAgo / 60)}m ${secsAgo % 60}s ago`;
   const intervalLabel = refreshIntervalSec >= 60 ? `${Math.floor(refreshIntervalSec / 60)} min` : `${refreshIntervalSec} sec`;
@@ -68,7 +79,10 @@ export function SentimentHeader({
               <Activity className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-100 leading-none">Option Chain Pulse</h1>
+              <div className="flex items-baseline gap-2">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-100 leading-none">Option Chain Pulse</h1>
+                {appVersion && <span className="text-[10px] font-mono text-slate-500">v{appVersion}</span>}
+              </div>
               <p className="text-[11px] text-slate-500 mt-0.5">PCR · India VIX · Smart Money · Multi-Timeframe Signals</p>
             </div>
           </div>
