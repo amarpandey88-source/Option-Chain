@@ -1,15 +1,17 @@
 "use client";
 
-import { ResponsiveContainer, Area, AreaChart, YAxis } from "recharts";
+import { ResponsiveContainer, Area, AreaChart, Tooltip, XAxis, YAxis } from "recharts";
 
 interface SparklineProps {
   data: { t: string; v: number }[];
+  name?: string;
   color?: string;
   height?: number;
 }
 
 export function Sparkline({
   data,
+  name = "Value",
   color = "#10b981",
   height = 36,
 }: SparklineProps) {
@@ -31,6 +33,24 @@ export function Sparkline({
         <YAxis
           domain={[min - pad, max + pad]}
           hide
+        />
+        <XAxis dataKey="t" hide />
+        <Tooltip
+          labelFormatter={(label) => new Date(String(label)).toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          })}
+          formatter={(value) => [Number(value).toFixed(2), name]}
+          contentStyle={{ backgroundColor: "#0a0e14", border: "1px solid #334155", borderRadius: 4, fontSize: 11 }}
+          labelStyle={{ color: "#cbd5e1" }}
+          itemStyle={{ color }}
+          wrapperStyle={{ zIndex: 50 }}
         />
         <Area
           type="monotone"

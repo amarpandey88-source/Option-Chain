@@ -120,6 +120,15 @@ export function ensureSchema(): Promise<void> {
       await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "TradeJournal_symbol_idx" ON "TradeJournal"("symbol")`)
       await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "TradeJournal_status_idx" ON "TradeJournal"("status")`)
       await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "TradeJournal_openedAt_idx" ON "TradeJournal"("openedAt")`)
+      await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "MarketHistory" (
+        "symbol" TEXT NOT NULL,
+        "dataSource" TEXT NOT NULL,
+        "metric" TEXT NOT NULL,
+        "capturedAt" TEXT NOT NULL,
+        "value" REAL NOT NULL,
+        PRIMARY KEY ("symbol", "dataSource", "metric", "capturedAt")
+      )`)
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "MarketHistory_lookup_idx" ON "MarketHistory"("symbol", "dataSource", "metric", "capturedAt")`)
       // Additive migration for databases created before "regime" existed —
       // CREATE TABLE IF NOT EXISTS above only helps brand-new databases; an
       // already-existing TradeJournal table needs the column added

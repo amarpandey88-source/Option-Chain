@@ -32,6 +32,8 @@ import { cn } from "@/lib/utils";
 import { SmartSignalPanel } from "@/components/option-chain/smart-signal-panel";
 import { isPastNewEntryCutoff } from "@/lib/market-hours";
 
+const EMPTY_MARKET_HISTORY: OptionChainSnapshot["history"] = { spot: [], pcr: [], vix: [] };
+
 function overallSignalAction(snap: OptionChainSnapshot): "BUY CE" | "BUY PE" | null {
   const a = snap.overallSignal.signal;
   return a === "BUY CE" || a === "BUY PE" ? a : null;
@@ -153,6 +155,16 @@ export default function Home() {
     refetchInterval: autoRefresh && (dataSource === "nse" || brokerConfigured) ? refreshIntervalSec * 1000 : false,
     staleTime: refreshIntervalSec * 1000 - 1000,
     retry: 1,
+  });
+  const { data: storedMarketHistory } = useQuery({
+    queryKey: ["market-history", symbol, dataSource],
+    queryFn: async () => {
+      const response = await fetch(`/api/market-history?symbol=${symbol}&source=${dataSource}`, { cache: "no-store" });
+      const result = await response.json();
+      return result.history as OptionChainSnapshot["history"];
+    },
+    staleTime: Infinity,
+    retry: false,
   });
 
   // Mirrors the latest chain into a ref (no re-render) so the live-tick
@@ -515,11 +527,20 @@ export default function Home() {
       <BackgroundWatchStrip activeSymbol={symbol} />
 
       {dataSource === "broker" && !brokerConfigured ? (
-        <NoDataBanner variant="not-configured" />
+        <>
+          <NoDataBanner variant="not-configured" />
+          <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 mt-4"><HistoryPanel history={storedMarketHistory ?? EMPTY_MARKET_HISTORY} /></div>
+        </>
       ) : isError ? (
-        <NoDataBanner variant="error" message={error instanceof Error ? error.message : undefined} onRetry={handleRefresh} isRetrying={isFetching} />
+        <>
+          <NoDataBanner variant="error" message={error instanceof Error ? error.message : undefined} onRetry={handleRefresh} isRetrying={isFetching} />
+          <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 mt-4"><HistoryPanel history={storedMarketHistory ?? EMPTY_MARKET_HISTORY} /></div>
+        </>
       ) : isLoading || !data ? (
-        <div className="flex-1 flex items-center justify-center"><div className="flex flex-col items-center gap-3 text-slate-400"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /><p className="text-sm">Loading real option chain data…</p></div></div>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <div className="flex flex-col items-center gap-3 text-slate-400"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /><p className="text-sm">Loading real option chain data…</p></div>
+          <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6"><HistoryPanel history={storedMarketHistory ?? EMPTY_MARKET_HISTORY} /></div>
+        </div>
       ) : (() => {
         const { metrics: m, greeks, signals, overallSignal, recommendation: liveRecommendation, chain, history } = data;
         const isSignalLocked = data.signalStability.isLocked;

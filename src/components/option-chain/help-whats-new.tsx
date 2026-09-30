@@ -8,6 +8,14 @@ import {
 
 const updates = [
   {
+    version: "v1.0.12",
+    date: "30 Sep 2026",
+    title: "Persistent market history",
+    items: [
+      "Keep Spot, PCR and India VIX chart history across app restarts, with date and time on hover.",
+    ],
+  },
+  {
     version: "v1.0.11",
     date: "30 Sep 2026",
     title: "App version in header",

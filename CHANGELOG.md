@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.12] - 2026-09-30
+- Persisted Spot, PCR and India VIX history across app restarts, with date/time shown on chart hover
+
 ## [1.0.11] - 2026-09-30
 - Display the current app version beside the app name in the dashboard header
 

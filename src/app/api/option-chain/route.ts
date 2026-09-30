@@ -18,11 +18,26 @@ import { generateSnapshotBroker, isBrokerConfigured, getConfiguredBroker } from 
 import { generateSnapshotYahoo } from "@/lib/yahoo-adapter";
 import { applyAdaptiveConfidence } from "@/lib/adaptive-confidence";
 import { ensureWatcherStarted } from "@/lib/multi-symbol-watcher";
-import { Symbol } from "@/lib/types";
+import { persistMarketHistory } from "@/lib/market-history";
+import { OptionChainSnapshot, Symbol } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const maxDuration = 20;
+
+async function withPersistedHistory(snapshot: OptionChainSnapshot, symbol: Symbol, source: "nse" | "broker") {
+  try {
+    const history = await persistMarketHistory(symbol, source, {
+      spot: snapshot.metrics.spot,
+      pcr: snapshot.metrics.pcr,
+      vix: snapshot.metrics.indiaVix,
+    });
+    return { ...snapshot, history };
+  } catch (err) {
+    console.error("[api/option-chain] failed to persist market history:", err);
+    return snapshot;
+  }
+}
 
 export async function GET(req: NextRequest) {
   // Lazily starts the background multi-symbol watcher (see
@@ -44,8 +59,9 @@ export async function GET(req: NextRequest) {
   if (source === "nse") {
     try {
       const s = await generateSnapshotYahoo(sym, expiry);
+      const snapshot = await withPersistedHistory(s, sym, "nse");
       return NextResponse.json(
-        { ...s, dataSource: "nse-view-only", alertsAllowed: false },
+        { ...snapshot, dataSource: "nse-view-only", alertsAllowed: false },
         { headers: noStoreHeaders }
       );
     } catch (err) {
@@ -74,8 +90,9 @@ export async function GET(req: NextRequest) {
   try {
     const raw = await generateSnapshotBroker(sym, expiry);
     const s = await applyAdaptiveConfidence(raw);
+    const snapshot = await withPersistedHistory(s, sym, "broker");
     return NextResponse.json(
-      { ...s, dataSource: `broker-${getConfiguredBroker()}`, alertsAllowed: true },
+      { ...snapshot, dataSource: `broker-${getConfiguredBroker()}`, alertsAllowed: true },
       { headers: noStoreHeaders }
     );
   } catch (err) {

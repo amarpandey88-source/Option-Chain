@@ -26,7 +26,7 @@ export function HistoryPanel({ history }: HistoryPanelProps) {
   return (
     <Card className="bg-[#0f1620] border-[#1c2530] p-3">
       <h3 className="text-sm font-semibold text-slate-200 mb-2">
-        Live Trend · 30 min
+        Market Trend · Recent History
       </h3>
       <div className="space-y-2.5">
         <TrendRow
@@ -102,7 +102,7 @@ function TrendRow({
           </span>
         </div>
       </div>
-      <Sparkline data={data} color={color} height={32} />
+      <Sparkline data={data} name={label} color={color} height={32} />
     </div>
   );
 }
