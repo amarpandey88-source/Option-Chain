@@ -21,6 +21,13 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.13] - 2026-09-30
+- Added persistent 5m, 15m and 30m RSI dashboard trend history.
+- Added a possible trend-reversal warning when 5-minute momentum turns against a confirmed 15/30-minute trend.
+- Added winning-trade celebration sounds for profitable automatic, manual and background-monitored exits.
+- Improved Trade Journal custom date ranges with validated, inclusive India-time boundaries.
+- Ensure the Windows release is made public after installer and updater assets finish uploading.
+
 ## [1.0.12] - 2026-09-30
 - Persisted Spot, PCR and India VIX history across app restarts, with date/time shown on chart hover
 

@@ -103,6 +103,7 @@ export function ensureSchema(): Promise<void> {
         "confidence" INTEGER NOT NULL,
         "sentiment" TEXT NOT NULL,
         "dataSource" TEXT NOT NULL,
+        "expiryDate" TEXT,
         "regime" TEXT,
         "status" TEXT NOT NULL DEFAULT 'OPEN',
         "exitSpot" REAL,
@@ -140,6 +141,11 @@ export function ensureSchema(): Promise<void> {
         await db.$executeRawUnsafe(`ALTER TABLE "TradeJournal" ADD COLUMN "regime" TEXT`)
       } catch {
         // Column already exists — expected and fine on every run after the first.
+      }
+      try {
+        await db.$executeRawUnsafe(`ALTER TABLE "TradeJournal" ADD COLUMN "expiryDate" TEXT`)
+      } catch {
+        // Column already exists — expected on subsequent runs.
       }
     })().catch((err) => {
       // Don't cache a rejected promise forever — let the next call retry.

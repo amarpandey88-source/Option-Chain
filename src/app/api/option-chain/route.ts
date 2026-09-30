@@ -31,6 +31,9 @@ async function withPersistedHistory(snapshot: OptionChainSnapshot, symbol: Symbo
       spot: snapshot.metrics.spot,
       pcr: snapshot.metrics.pcr,
       vix: snapshot.metrics.indiaVix,
+      rsi5: snapshot.signals["5min"].rsi,
+      rsi15: snapshot.signals["15min"].rsi,
+      rsi30: snapshot.signals["30min"].rsi,
     });
     return { ...snapshot, history };
   } catch (err) {

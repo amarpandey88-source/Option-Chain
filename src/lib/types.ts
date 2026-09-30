@@ -150,6 +150,9 @@ export interface OptionChainSnapshot {
     spot: { t: string; v: number }[];
     pcr: { t: string; v: number }[];
     vix: { t: string; v: number }[];
+    rsi5: { t: string; v: number }[];
+    rsi15: { t: string; v: number }[];
+    rsi30: { t: string; v: number }[];
   };
   sentiment: Sentiment;
   signalStability: SignalStability;

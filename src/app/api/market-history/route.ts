@@ -5,7 +5,7 @@ import type { Symbol } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const EMPTY_HISTORY = { spot: [], pcr: [], vix: [] };
+const EMPTY_HISTORY = { spot: [], pcr: [], vix: [], rsi5: [], rsi15: [], rsi30: [] };
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

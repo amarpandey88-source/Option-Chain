@@ -32,11 +32,32 @@ import { cn } from "@/lib/utils";
 import { SmartSignalPanel } from "@/components/option-chain/smart-signal-panel";
 import { isPastNewEntryCutoff } from "@/lib/market-hours";
 
-const EMPTY_MARKET_HISTORY: OptionChainSnapshot["history"] = { spot: [], pcr: [], vix: [] };
+const EMPTY_MARKET_HISTORY: OptionChainSnapshot["history"] = { spot: [], pcr: [], vix: [], rsi5: [], rsi15: [], rsi30: [] };
 
 function overallSignalAction(snap: OptionChainSnapshot): "BUY CE" | "BUY PE" | null {
   const a = snap.overallSignal.signal;
   return a === "BUY CE" || a === "BUY PE" ? a : null;
+}
+
+function detectPotentialReversal(snap: OptionChainSnapshot) {
+  const short = snap.signals["5min"];
+  const medium = snap.signals["15min"];
+  const long = snap.signals["30min"];
+  if (medium.trend !== long.trend || medium.trend === "FLAT") return null;
+
+  if (medium.trend === "UP" &&
+    (short.trend === "DOWN" || short.signal === "BUY PE") &&
+    short.momentum <= -15 &&
+    (short.emaCross === "BEARISH" || short.vwapBias === "BELOW" || short.rsi <= 45)) {
+    return { direction: "bearish" as const, priorTrend: "UP" };
+  }
+  if (medium.trend === "DOWN" &&
+    (short.trend === "UP" || short.signal === "BUY CE") &&
+    short.momentum >= 15 &&
+    (short.emaCross === "BULLISH" || short.vwapBias === "ABOVE" || short.rsi >= 55)) {
+    return { direction: "bullish" as const, priorTrend: "DOWN" };
+  }
+  return null;
 }
 
 async function fetchSnapshot(symbol: Symbol, source: "nse" | "broker", expiry?: string): Promise<OptionChainSnapshot & { dataSource?: string; alertsAllowed?: boolean }> {
@@ -72,7 +93,6 @@ function getRealCurrentPremium(
 
 export default function Home() {
   const [symbol, setSymbol] = useState<Symbol>("NIFTY");
-
   // Heartbeat to the multi-symbol background watcher (see
   // multi-symbol-watcher.ts): tells it which symbol this tab is actively
   // viewing, so it leaves that one to this page's own faster live-tick
@@ -138,6 +158,13 @@ export default function Home() {
   const [alertConfig, setAlertConfig] = useAlertConfig();
   const [lastAlert, setLastAlert] = useState<AlertEvent | null>(null);
   const { play: playAlertSound, preview: previewSound, celebrate: playWinSound } = useAlertSound(alertConfig.soundEnabled);
+  const lastReversalAlertRef = useRef<{ key: string; at: number } | null>(null);
+  const celebratedTradeAlertIdsRef = useRef(new Set<string>());
+  const celebrateWinningTrade = useCallback((alertId: string) => {
+    if (celebratedTradeAlertIdsRef.current.has(alertId)) return;
+    celebratedTradeAlertIdsRef.current.add(alertId);
+    playWinSound();
+  }, [playWinSound]);
   const [activeTrade, setActiveTrade] = useState<{
     id: string; openedAt: number; action: "BUY CE" | "BUY PE"; strike: number;
     entryPremium: number; stopLossPremium: number; target1Premium: number; target2Premium: number; target3Premium: number;
@@ -297,8 +324,8 @@ export default function Home() {
   // (which isn't finished being declared yet at the time this function is
   // defined, a real temporal-dead-zone hazard the earlier plain
   // self-reference had).
-  const saveTradeToJournal = useCallback(function trySave(p: { id: string; symbol: string; action: "BUY CE" | "BUY PE"; strike: number; entry: number; stopLoss: number; target1: number; target2: number; target3: number; confidence: number; entrySpot: number; sentiment: string; rationale: string; regime?: string }, attempt = 1) {
-    fetch("/api/trade-journal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alertId: p.id, symbol: p.symbol, action: p.action, optionType: p.action === "BUY CE" ? "CE" : "PE", strike: p.strike, entryPremium: p.entry, stopLoss: p.stopLoss, target1: p.target1, target2: p.target2, target3: p.target3, entrySpot: p.entrySpot, confidence: p.confidence, sentiment: p.sentiment, dataSource: data?.dataSource || "broker", regime: p.regime, rationale: p.rationale }) })
+  const saveTradeToJournal = useCallback(function trySave(p: { id: string; symbol: string; action: "BUY CE" | "BUY PE"; strike: number; entry: number; stopLoss: number; target1: number; target2: number; target3: number; confidence: number; entrySpot: number; sentiment: string; rationale: string; regime?: string; expiry?: string }, attempt = 1) {
+    fetch("/api/trade-journal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alertId: p.id, symbol: p.symbol, action: p.action, optionType: p.action === "BUY CE" ? "CE" : "PE", strike: p.strike, entryPremium: p.entry, stopLoss: p.stopLoss, target1: p.target1, target2: p.target2, target3: p.target3, entrySpot: p.entrySpot, confidence: p.confidence, sentiment: p.sentiment, dataSource: data?.dataSource || "broker", expiryDate: p.expiry, regime: p.regime, rationale: p.rationale }) })
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -348,7 +375,7 @@ export default function Home() {
     const rationale = event.reasoning;
     setActiveTrade({ id: event.id, openedAt: event.ts, action: event.action, strike: event.strike, entryPremium: event.entry, stopLossPremium: event.stopLoss, target1Premium: event.target1, target2Premium: event.target2, target3Premium: event.target3, entrySpot, confidence: event.confidence, optionType: event.action === "BUY CE" ? "CE" : "PE", lotSize, entryDelta, symbol: event.symbol, sentiment, rationale, regime: data?.metrics.regime, journalStatus: "saving", slMovedToBreakeven: false });
 
-    saveTradeToJournal({ id: event.id, symbol: event.symbol, action: event.action, strike: event.strike, entry: event.entry, stopLoss: event.stopLoss, target1: event.target1, target2: event.target2, target3: event.target3, confidence: event.confidence, entrySpot, sentiment, rationale, regime: data?.metrics.regime });
+    saveTradeToJournal({ id: event.id, symbol: event.symbol, action: event.action, strike: event.strike, entry: event.entry, stopLoss: event.stopLoss, target1: event.target1, target2: event.target2, target3: event.target3, confidence: event.confidence, entrySpot, sentiment, rationale, expiry: data?.recommendation.expiry, regime: data?.metrics.regime });
 
     // Fire-and-forget — Telegram delivery failing should never block or
     // affect the in-app alert flow above. Silently configured-or-not; the
@@ -406,6 +433,21 @@ export default function Home() {
     refetchInterval: 15000,
     staleTime: 10000,
   });
+  const journalWinsLoadedRef = useRef(false);
+  useEffect(() => {
+    const trades = journalTodayData?.trades as { alertId: string; status: string; totalPnl: number | null }[] | undefined;
+    if (!trades) return;
+    if (!journalWinsLoadedRef.current) {
+      for (const trade of trades) {
+        if (trade.status !== "OPEN" && (trade.totalPnl ?? 0) > 0) celebratedTradeAlertIdsRef.current.add(trade.alertId);
+      }
+      journalWinsLoadedRef.current = true;
+      return;
+    }
+    for (const trade of trades) {
+      if (trade.status !== "OPEN" && (trade.totalPnl ?? 0) > 0) celebrateWinningTrade(trade.alertId);
+    }
+  }, [journalTodayData, celebrateWinningTrade]);
   const tradesToday = (() => {
     if (!journalTodayData?.trades) return 0;
     const todayKey = new Date().toISOString().slice(0, 10);
@@ -421,6 +463,27 @@ export default function Home() {
   })();
 
   useAlertEngine({ config: alertConfig, snapshot: alertSnapshot, stability: data?.signalStability ? { isLocked: data.signalStability.isLocked, consecutiveCount: data.signalStability.consecutiveCount } : null, tradesToday, hasActiveTrade: !!activeTrade, todayPnl, lastLossClosedAt, onAlert: handleAlert });
+
+  useEffect(() => {
+    if (!data || !data.alertsAllowed || !alertConfig.enabled) return;
+    const reversal = detectPotentialReversal(data);
+    if (!reversal) {
+      const previous = lastReversalAlertRef.current;
+      if (previous) lastReversalAlertRef.current = { key: "", at: previous.at };
+      return;
+    }
+    const key = `${data.metrics.symbol}:${reversal.direction}`;
+    const previous = lastReversalAlertRef.current;
+    if (previous?.key === key || (previous && Date.now() - previous.at < 5 * 60_000)) return;
+
+    const now = Date.now();
+    lastReversalAlertRef.current = { key, at: now };
+    const directionLabel = reversal.direction === "bullish" ? "Bullish" : "Bearish";
+    const detail = `5m momentum and trend are turning ${reversal.direction}; 15m and 30m still show ${reversal.priorTrend}. Wait for price confirmation before acting.`;
+    playAlertSound("reversal");
+    toast.warning(`Possible ${directionLabel.toLowerCase()} reversal · ${data.metrics.symbol}`, { description: detail, duration: 10000 });
+    notifyDesktop(`Possible ${directionLabel.toLowerCase()} reversal · ${data.metrics.symbol}`, detail);
+  }, [data, alertConfig.enabled, playAlertSound, notifyDesktop]);
 
   // Fire-and-forget Telegram delivery for exit events (SL/target/EOD) — same
   // best-effort pattern as the entry alert above.
@@ -464,6 +527,7 @@ export default function Home() {
     if (isPastNewEntryCutoff()) {
       const action = activeTrade.action, strike = activeTrade.strike, price = currentPremium;
       queueMicrotask(() => {
+        if (price > activeTrade.entryPremium) celebrateWinningTrade(activeTrade.id);
         toast(`EOD square-off: ${action} ${strike}`, { description: `Auto-closed at 3:15 PM IST at ~${price.toFixed(0)}`, duration: 8000 });
         updateJournal("EOD_SQUAREOFF", `Auto-exited at 3:15 PM IST end-of-day square-off, premium ${price.toFixed(0)}`, price, currentSpot);
         sendTelegramExit("⏰", `EOD square-off: ${action} ${strike}`, `Auto-closed at 3:15 PM IST at ~₹${price.toFixed(0)}`);
@@ -499,9 +563,9 @@ export default function Home() {
       // pickTradeLevels in yahoo-adapter.ts) — every trade that fires is
       // designed to exit right here, not run further hoping for T2/T3.
       const action = activeTrade.action, strike = activeTrade.strike, price = currentPremium;
-      queueMicrotask(() => { playWinSound(); toast.success(`Target 1 hit on ${action} ${strike}! (1:2 RR)`, { description: `Exited at ~${price.toFixed(0)}`, duration: 8000 }); updateJournal("TARGET1_HIT", `Target 1 hit at premium ${price.toFixed(0)} (1:2 risk:reward)`, price, currentSpot); sendTelegramExit("🎯", `Target hit: ${action} ${strike}`, `Exited at ~₹${price.toFixed(0)} (1:2 RR)`); notifyDesktop(`Target hit: ${action} ${strike}`, `Exited at ~₹${price.toFixed(0)} (1:2 RR)`); setActiveTrade(null); });
+      queueMicrotask(() => { celebrateWinningTrade(activeTrade.id); toast.success(`Target 1 hit on ${action} ${strike}! (1:2 RR)`, { description: `Exited at ~${price.toFixed(0)}`, duration: 8000 }); updateJournal("TARGET1_HIT", `Target 1 hit at premium ${price.toFixed(0)} (1:2 risk:reward)`, price, currentSpot); sendTelegramExit("🎯", `Target hit: ${action} ${strike}`, `Exited at ~₹${price.toFixed(0)} (1:2 RR)`); notifyDesktop(`Target hit: ${action} ${strike}`, `Exited at ~₹${price.toFixed(0)} (1:2 RR)`); setActiveTrade(null); });
     }
-  }, [data, activeTrade, liveLtp, sendTelegramExit, notifyDesktop, playWinSound]);
+  }, [data, activeTrade, liveLtp, sendTelegramExit, notifyDesktop, celebrateWinningTrade]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "r" || e.key === "R") handleRefresh(); };
@@ -594,10 +658,10 @@ export default function Home() {
         </section>
 
         {/* Active Trade(s) — everything currently open, in one place: the
-            actively-viewed symbol's trade (rich, live-tick-tracked panel)
-            plus any other symbols' trades the background watcher has
-            fired, together under one section rather than split across
-            the dashboard. */}
+          actively-viewed symbol's trade (rich, live-tick-tracked panel)
+          plus any other symbols' trades the background watcher has
+          fired, together under one section rather than split across
+          the dashboard. */}
         {(activeTrade || otherOpenTrades.length > 0) && (
           <section>
             <SectionTitle
@@ -614,12 +678,13 @@ export default function Home() {
                   journalStatus={activeTrade.journalStatus}
                   onRetryJournal={() => {
                     setActiveTrade(prev => prev ? { ...prev, journalStatus: "saving" } : prev);
-                    saveTradeToJournal({ id: activeTrade.id, symbol: activeTrade.symbol, action: activeTrade.action, strike: activeTrade.strike, entry: activeTrade.entryPremium, stopLoss: activeTrade.stopLossPremium, target1: activeTrade.target1Premium, target2: activeTrade.target2Premium, target3: activeTrade.target3Premium, confidence: activeTrade.confidence, entrySpot: activeTrade.entrySpot, sentiment: activeTrade.sentiment, rationale: activeTrade.rationale, regime: activeTrade.regime });
+                    saveTradeToJournal({ id: activeTrade.id, symbol: activeTrade.symbol, action: activeTrade.action, strike: activeTrade.strike, entry: activeTrade.entryPremium, stopLoss: activeTrade.stopLossPremium, target1: activeTrade.target1Premium, target2: activeTrade.target2Premium, target3: activeTrade.target3Premium, confidence: activeTrade.confidence, entrySpot: activeTrade.entrySpot, sentiment: activeTrade.sentiment, rationale: activeTrade.rationale, regime: activeTrade.regime, expiry: data?.recommendation.expiry });
                   }}
                   onClose={() => {
                   const exitSpot = data.metrics.spot;
                   const exitPremium = getRealCurrentPremium(activeTrade, data.chain, exitSpot);
                   const pnlPerLot = exitPremium - activeTrade.entryPremium; const totalPnl = pnlPerLot * activeTrade.lotSize; const pnlPercent = (pnlPerLot / activeTrade.entryPremium) * 100; const durationSec = Math.round((Date.now() - activeTrade.openedAt) / 1000);
+                  if (totalPnl > 0) celebrateWinningTrade(activeTrade.id);
                   toast("Trade closed manually", { description: `Exited at ~${exitPremium.toFixed(0)} · P&L ${totalPnl >= 0 ? "+" : "−"}₹${Math.abs(totalPnl).toFixed(0)}` });
                   fetch(`/api/trade-journal?limit=200`, { cache: "no-store" }).then(r => r.json()).then(d => {
                     const trade = d.trades?.find((t: any) => t.alertId === activeTrade.id);
@@ -742,7 +807,7 @@ export default function Home() {
             {/* Trade Journal */}
             <section>
               <SectionTitle title="Trade Journal" subtitle="Auto-records every trade signal the system generates — track win rate + P&L over time" />
-              <div className="mt-3"><TradeJournalPanel currentSpot={data?.metrics.spot} onExternalClose={(alertId) => { setActiveTrade(prev => (prev && prev.id === alertId) ? null : prev); }} activeTradeLtp={activeTrade ? { alertId: activeTrade.id, ltp: realCurrentPremium } : null} watchLtpBySymbol={watchLtpBySymbol} /></div>
+              <div className="mt-3"><TradeJournalPanel currentSpot={data?.metrics.spot} currentChain={data?.chain} brokerProvider={brokerProvider} onExternalClose={(alertId) => { setActiveTrade(prev => (prev && prev.id === alertId) ? null : prev); }} onWinningClose={celebrateWinningTrade} activeTradeLtp={activeTrade ? { alertId: activeTrade.id, ltp: realCurrentPremium } : null} watchLtpBySymbol={watchLtpBySymbol} /></div>
             </section>
           </TabsContent>
         </Tabs>

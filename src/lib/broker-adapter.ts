@@ -899,7 +899,7 @@ const rec: TradeRecommendation = {
       updatedAt: new Date().toISOString(), atmStrike,
     },
     greeks, signals: ctx.signals, overallSignal: finalSignal, recommendation: rec,
-    chain, history: { spot: ctx.spotHistory, pcr: pcrHistory, vix: ctx.vixHistory }, sentiment: ctx.sentiment,
+    chain, history: { spot: ctx.spotHistory, pcr: pcrHistory, vix: ctx.vixHistory, rsi5: [], rsi15: [], rsi30: [] }, sentiment: ctx.sentiment,
     signalStability: ctx.signalStability,
     candlePattern: ctx.candlePattern, smartSignal,
   };

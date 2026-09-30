@@ -55,6 +55,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # electron-builder uploads the installer and latest.yml to a draft
+      # release. Draft releases are invisible to electron-updater, so make
+      # the release public after all assets have finished uploading.
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish == 'true'
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          gh release edit "v$version" --draft=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Package only, no publish (manual test run)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish != 'true'
         run: npx electron-builder --win --x64 --publish never

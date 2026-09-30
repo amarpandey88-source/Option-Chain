@@ -10,7 +10,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TrendingUp, TrendingDown, Trash2, History, RefreshCw, LogOut, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getDefaultExpiry } from "@/lib/expiry-utils";
+import type { OptionChainRow, Symbol } from "@/lib/types";
 
 interface TradeEntry {
   id: string; alertId: string; symbol: string; action: string; optionType: string; strike: number;
@@ -18,7 +20,7 @@ interface TradeEntry {
   entrySpot: number; confidence: number; sentiment: string; rationale: string; status: string;
   exitSpot: number | null; exitPremium: number | null; pnlPerLot: number | null; totalPnl: number | null;
   pnlPercent: number | null; durationSec: number | null; exitReason: string | null;
-  openedAt: string; closedAt: string | null; dataSource: string;
+  openedAt: string; closedAt: string | null; dataSource: string; expiryDate: string | null;
 }
 interface TradeStats { total: number; open: number; closed: number; wins: number; losses: number; winRate: number; totalPnl: number; avgWin: number; avgLoss: number; }
 
@@ -38,9 +40,13 @@ const RESULT_STYLE: Record<string, { label: string; text: string }> = {
   EOD_SQUAREOFF: { label: "EOD square-off (3:15 PM)", text: "text-amber-300" },
 };
 
-async function fetchTrades(filters: { period: string; result: string; symbol: string; action: string; source: string }): Promise<{ trades: TradeEntry[]; stats: TradeStats }> {
+async function fetchTrades(filters: { period: string; fromDate: string; toDate: string; result: string; symbol: string; action: string; source: string }): Promise<{ trades: TradeEntry[]; stats: TradeStats }> {
   const params = new URLSearchParams({ limit: "200" });
   if (filters.period !== "all") params.set("period", filters.period);
+  if (filters.period === "custom" && filters.fromDate && filters.toDate) {
+    params.set("fromDate", filters.fromDate);
+    params.set("toDate", filters.toDate);
+  }
   if (filters.result !== "all") params.set("result", filters.result);
   if (filters.symbol !== "ALL") params.set("symbol", filters.symbol);
   if (filters.action !== "ALL") params.set("action", filters.action);
@@ -50,7 +56,7 @@ async function fetchTrades(filters: { period: string; result: string; symbol: st
 }
 
 interface TradeJournalPanelProps {
-  currentSpot?: number; onExternalClose?: (alertId: string) => void;
+  currentSpot?: number; onExternalClose?: (alertId: string) => void; onWinningClose?: (alertId: string) => void;
   // Live LTP for the currently-viewed symbol's own trade (from the
   // dashboard's live-tick tracking) and for other symbols' background
   // trades (from the multi-symbol watcher) — see page.tsx. Used only to
@@ -58,21 +64,54 @@ interface TradeJournalPanelProps {
   // recorded exit price instead, which is already exact.
   activeTradeLtp?: { alertId: string; ltp: number } | null;
   watchLtpBySymbol?: Record<string, number>;
+  currentChain?: OptionChainRow[];
+  brokerProvider?: string | null;
 }
 
-export function TradeJournalPanel({ currentSpot, onExternalClose, activeTradeLtp, watchLtpBySymbol }: TradeJournalPanelProps) {
+export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose, activeTradeLtp, watchLtpBySymbol, currentChain, brokerProvider }: TradeJournalPanelProps) {
   const queryClient = useQueryClient();
   const [confirmClear, setConfirmClear] = useState(false);
   const [exitTarget, setExitTarget] = useState<TradeEntry | null>(null);
   const [exitPriceInput, setExitPriceInput] = useState("");
   const [period, setPeriod] = useState("all");
+  const [customFromDate, setCustomFromDate] = useState("");
+  const [customToDate, setCustomToDate] = useState("");
   const [result, setResult] = useState("all");
   const [symbolFilter, setSymbolFilter] = useState("ALL");
   const [actionFilter, setActionFilter] = useState("ALL");
   const [sourceFilter, setSourceFilter] = useState("all");
-  const filters = { period, result, symbol: symbolFilter, action: actionFilter, source: sourceFilter };
+  const [liveLtpByAlert, setLiveLtpByAlert] = useState<Record<string, number>>({});
+  const filters = { period, fromDate: customFromDate, toDate: customToDate, result, symbol: symbolFilter, action: actionFilter, source: sourceFilter };
   const filtersActive = period !== "all" || result !== "all" || symbolFilter !== "ALL" || actionFilter !== "ALL" || sourceFilter !== "all";
-  const { data, isLoading, refetch, isFetching } = useQuery({ queryKey: ["trade-journal", filters], queryFn: () => fetchTrades(filters), refetchInterval: 5000, staleTime: 3000 });
+  const customDateReady = period !== "custom" || (!!customFromDate && !!customToDate && customFromDate <= customToDate);
+  const { data, isLoading, refetch, isFetching } = useQuery({ queryKey: ["trade-journal", filters], queryFn: () => fetchTrades(filters), enabled: customDateReady, refetchInterval: 5000, staleTime: 3000 });
+  const [, setClock] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setClock(Date.now()), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+  const trades = data?.trades ?? [];
+  useEffect(() => {
+    if (brokerProvider !== "fyers" || !currentChain?.length) return;
+    const streams: EventSource[] = [];
+    for (const trade of trades) {
+      if (isTradeExpired(trade)) continue;
+      const row = currentChain.find(item => item.strike === trade.strike);
+      const fySymbol = trade.optionType === "CE" ? row?.ceFySymbol : row?.peFySymbol;
+      if (!fySymbol) continue;
+      const stream = new EventSource(`/api/live-tick?symbol=${encodeURIComponent(fySymbol)}`);
+      stream.onmessage = event => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === "tick" && typeof message.ltp === "number" && message.ltp > 0) {
+            setLiveLtpByAlert(previous => ({ ...previous, [trade.alertId]: message.ltp }));
+          }
+        } catch { /* ignore malformed stream events */ }
+      };
+      streams.push(stream);
+    }
+    return () => streams.forEach(stream => stream.close());
+  }, [brokerProvider, currentChain, trades]);
   const clearMutation = useMutation({
     mutationFn: async () => { const res = await fetch("/api/trade-journal?confirm=DELETE", { method: "DELETE" }); if (!res.ok) throw new Error("Failed"); return res.json(); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["trade-journal"] }); setConfirmClear(false); },
@@ -91,9 +130,10 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, activeTradeLtp
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed"); }
       return { trade, ...(await res.json()) };
     },
-    onSuccess: (_, { trade }) => {
+    onSuccess: (_, { trade, exitPremium }) => {
       queryClient.invalidateQueries({ queryKey: ["trade-journal"] });
       queryClient.invalidateQueries({ queryKey: ["trade-journal-today"] });
+      if (exitPremium > trade.entryPremium) onWinningClose?.(trade.alertId);
       // If this row happens to be the trade the dashboard is currently
       // tracking as "Active", tell the parent so it can clear that state too
       // — otherwise the Active Trade card keeps showing a position that's
@@ -103,7 +143,6 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, activeTradeLtp
       setExitTarget(null); setExitPriceInput("");
     },
   });
-  const trades = data?.trades ?? [];
   const stats = data?.stats ?? { total: 0, open: 0, closed: 0, wins: 0, losses: 0, winRate: 0, totalPnl: 0, avgWin: 0, avgLoss: 0 };
   const pnlPositive = stats.totalPnl >= 0;
 
@@ -131,8 +170,22 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, activeTradeLtp
             <SelectItem value="7d">Last 7 Days</SelectItem>
             <SelectItem value="30d">Last 30 Days</SelectItem>
             <SelectItem value="month">This Month</SelectItem>
+            <SelectItem value="custom">Custom Dates</SelectItem>
           </SelectContent>
         </Select>
+        {period === "custom" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              From
+              <Input type="date" aria-label="Start date" value={customFromDate} max={customToDate || undefined} onChange={event => setCustomFromDate(event.target.value)} className="h-7 w-[140px] px-2 text-[11px] bg-[#0a0e14] border-[#1c2530] text-slate-300" />
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              To
+              <Input type="date" aria-label="End date" value={customToDate} min={customFromDate || undefined} onChange={event => setCustomToDate(event.target.value)} className="h-7 w-[140px] px-2 text-[11px] bg-[#0a0e14] border-[#1c2530] text-slate-300" />
+            </label>
+            {!customFromDate || !customToDate ? <span className="text-[10px] text-slate-500">Select both dates</span> : !customDateReady ? <span className="text-[10px] text-rose-400">End date must be on or after start date</span> : null}
+          </div>
+        )}
         <Select value={result} onValueChange={setResult}>
           <SelectTrigger className="h-7 w-[110px] text-[11px] bg-[#0a0e14] border-[#1c2530] text-slate-300"><SelectValue /></SelectTrigger>
           <SelectContent className="bg-[#0d1219] border-[#1c2530] text-slate-200">
@@ -168,7 +221,7 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, activeTradeLtp
           </SelectContent>
         </Select>
         {filtersActive && (
-          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-slate-500 hover:text-slate-200" onClick={() => { setPeriod("all"); setResult("all"); setSymbolFilter("ALL"); setActionFilter("ALL"); setSourceFilter("all"); }}>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-slate-500 hover:text-slate-200" onClick={() => { setPeriod("all"); setCustomFromDate(""); setCustomToDate(""); setResult("all"); setSymbolFilter("ALL"); setActionFilter("ALL"); setSourceFilter("all"); }}>
             Reset
           </Button>
         )}
@@ -180,7 +233,7 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, activeTradeLtp
         <StatBox label="Total P&L" value={`${pnlPositive ? "+" : "−"}₹${Math.abs(stats.totalPnl).toFixed(0)}`} sub={`avg win ₹${stats.avgWin.toFixed(0)} / loss ₹${stats.avgLoss.toFixed(0)}`} color={pnlPositive ? "text-emerald-400" : "text-rose-400"} border={pnlPositive ? "border-emerald-700/40" : "border-rose-700/40"} bg={pnlPositive ? "bg-emerald-500/5" : "bg-rose-500/5"} />
         <StatBox label="Best Outcome" value={trades.find(t => t.status === "TARGET3_HIT") ? "T3" : trades.find(t => t.status === "TARGET2_HIT") ? "T2" : trades.find(t => t.status === "TARGET1_HIT") ? "T1" : stats.closed > 0 ? "T1 / SL" : "—"} color="text-amber-400" border="border-amber-700/40" bg="bg-amber-500/5" />
       </div>
-      {isLoading ? <div className="text-center py-6 text-slate-500 text-sm">Loading trades…</div> : trades.length === 0 ? <div className="text-center py-6 text-slate-500"><History className="h-7 w-7 mx-auto mb-2 opacity-30" /><p className="text-sm">{filtersActive ? "No trades match these filters" : "No trades recorded yet"}</p><p className="text-[11px] mt-1">{filtersActive ? "Try Reset to see everything again" : "Trades appear here automatically when a stable signal triggers an alert"}</p></div> : (
+      {!customDateReady ? <div className="text-center py-6 text-slate-500 text-sm">Choose a valid custom date range to view trades.</div> : isLoading ? <div className="text-center py-6 text-slate-500 text-sm">Loading trades…</div> : trades.length === 0 ? <div className="text-center py-6 text-slate-500"><History className="h-7 w-7 mx-auto mb-2 opacity-30" /><p className="text-sm">{filtersActive ? "No trades match these filters" : "No trades recorded yet"}</p><p className="text-[11px] mt-1">{filtersActive ? "Try Reset to see everything again" : "Trades appear here automatically when a stable signal triggers an alert"}</p></div> : (
         <ScrollArea className="max-h-[440px]">
           <table className="w-full text-[13px] font-mono border-collapse">
             <thead>
@@ -200,7 +253,7 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, activeTradeLtp
               </tr>
             </thead>
             <tbody>
-              {trades.map((t, i) => <TradeRow key={t.id} sno={i + 1} trade={t} onExitClick={() => { setExitTarget(t); setExitPriceInput(String(t.entryPremium)); }} liveLtp={t.alertId === activeTradeLtp?.alertId ? activeTradeLtp?.ltp : watchLtpBySymbol?.[t.symbol]} />)}
+              {trades.map((t, i) => <TradeRow key={t.id} sno={i + 1} trade={t} onExitClick={() => { setExitTarget(t); setExitPriceInput(String(t.entryPremium)); }} liveLtp={liveLtpByAlert[t.alertId] ?? (t.alertId === activeTradeLtp?.alertId ? activeTradeLtp?.ltp : watchLtpBySymbol?.[t.symbol])} />)}
             </tbody>
           </table>
         </ScrollArea>
@@ -235,6 +288,11 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, activeTradeLtp
   );
 }
 
+function isTradeExpired(trade: TradeEntry): boolean {
+  const expiryDate = trade.expiryDate || getDefaultExpiry(trade.symbol as Symbol).iso;
+  return Date.now() >= new Date(`${expiryDate}T15:30:00+05:30`).getTime();
+}
+
 function StatBox({ label, value, sub, color, border, bg }: { label: string; value: string; sub?: string; color: string; border: string; bg: string }) {
   return <div className={cn("rounded-md border px-3 py-2", bg, border)}><div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div><div className={cn("font-mono text-base font-bold mt-0.5", color)}>{value}</div>{sub && <div className="text-[10px] text-slate-500 font-mono mt-0.5">{sub}</div>}</div>;
 }
@@ -250,7 +308,7 @@ function TradeRow({ trade, sno, onExitClick, liveLtp }: { trade: TradeEntry; sno
   // or the background watcher — see page.tsx), the recorded exit price
   // once closed (that's the real, exact price it actually left at, no
   // reason to keep guessing after the fact).
-  const ltpValue = isOpen ? liveLtp : trade.exitPremium ?? undefined;
+  const ltpValue = isTradeExpired(trade) ? 0 : liveLtp ?? trade.exitPremium ?? undefined;
   const ltpUp = ltpValue != null && ltpValue >= trade.entryPremium;
   return (
     <tr className={cn("border-b border-[#1c2530]/60 hover:bg-[#0a0e14]/60", isOpen && "bg-cyan-500/[0.03]")}>

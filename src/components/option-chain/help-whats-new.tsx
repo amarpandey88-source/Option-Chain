@@ -8,6 +8,18 @@ import {
 
 const updates = [
   {
+    version: "v1.0.13",
+    date: "30 Sep 2026",
+    title: "Market history and trade workflow improvements",
+    items: [
+      "Show persistent 5m, 15m and 30m RSI history in the dashboard trend charts.",
+      "Add a possible trend-reversal warning when 5-minute momentum turns against a confirmed 15/30-minute trend.",
+      "Play winning-trade celebration sounds for profitable automatic, manual and background-monitored exits.",
+      "Improve Trade Journal custom date ranges with validated, inclusive India-time boundaries.",
+      "Publish Windows installer and updater assets before making the release visible to update checks.",
+    ],
+  },
+  {
     version: "v1.0.12",
     date: "30 Sep 2026",
     title: "Persistent market history",

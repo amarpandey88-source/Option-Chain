@@ -7,6 +7,7 @@ interface SparklineProps {
   name?: string;
   color?: string;
   height?: number;
+  domain?: [number, number];
 }
 
 export function Sparkline({
@@ -14,6 +15,7 @@ export function Sparkline({
   name = "Value",
   color = "#10b981",
   height = 36,
+  domain,
 }: SparklineProps) {
   if (!data || data.length === 0) return null;
   const values = data.map((d) => d.v);
@@ -31,7 +33,7 @@ export function Sparkline({
           </linearGradient>
         </defs>
         <YAxis
-          domain={[min - pad, max + pad]}
+          domain={domain ?? [min - pad, max + pad]}
           hide
         />
         <XAxis dataKey="t" hide />

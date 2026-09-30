@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useRef, useEffect } from "react";
 
-type AlertKind = "bull" | "bear" | "neutral" | "win";
+type AlertKind = "bull" | "bear" | "neutral" | "reversal" | "win";
 
 export function useAlertSound(enabled: boolean) {
   const ctxRef = useRef<AudioContext | null>(null);
@@ -36,6 +36,9 @@ export function useAlertSound(enabled: boolean) {
       playTone(659.25, 0.12, 0.14, 0.22);
       playTone(783.99, 0.24, 0.14, 0.24);
       playTone(1046.5, 0.36, 0.42, 0.28);
+    } else if (kind === "reversal") {
+      playTone(740, 0, 0.16, 0.24, "triangle");
+      playTone(554.37, 0.18, 0.22, 0.24, "triangle");
     } else if (kind === "bull") { playTone(523.25, 0, 0.18, 0.25); playTone(659.25, 0.15, 0.18, 0.25); playTone(783.99, 0.3, 0.32, 0.3); }
     else if (kind === "bear") { playTone(440, 0, 0.22, 0.28, "sawtooth"); playTone(329.63, 0.2, 0.4, 0.3, "sawtooth"); }
     else playTone(600, 0, 0.25, 0.2, "triangle");

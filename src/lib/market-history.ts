@@ -1,7 +1,7 @@
 import { db, ensureSchema } from "./db";
 import type { Symbol } from "./types";
 
-const HISTORY_METRICS = ["spot", "pcr", "vix"] as const;
+const HISTORY_METRICS = ["spot", "pcr", "vix", "rsi5", "rsi15", "rsi30"] as const;
 const MAX_HISTORY_POINTS = 1500;
 const RETENTION_DAYS = 30;
 

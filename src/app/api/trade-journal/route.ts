@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
     // existing `?status=OPEN` calls keep behaving exactly as before.
     const result = searchParams.get("result"); // "win" | "loss" | "open" | null (= all)
     const period = searchParams.get("period"); // "today" | "7d" | "30d" | "month" | null (= all time)
+    const fromDate = searchParams.get("fromDate");
+    const toDate = searchParams.get("toDate");
     const action = searchParams.get("action"); // "BUY CE" | "BUY PE" | null (= all)
     const source = searchParams.get("source"); // "live" | "background" | null (= all) — background trades are the ones the multi-symbol watcher auto-fired (see multi-symbol-watcher.ts's alertId prefix)
 
@@ -46,7 +48,21 @@ export async function GET(req: NextRequest) {
       where.totalPnl = { lte: 0 };
     }
 
-    if (period && period !== "all") {
+    if (period === "custom") {
+      const parseIstDate = (value: string, endOfDay: boolean): Date | null => {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+        if (!match) return null;
+        const [, year, month, day] = match;
+        const check = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+        if (check.getUTCFullYear() !== Number(year) || check.getUTCMonth() !== Number(month) - 1 || check.getUTCDate() !== Number(day)) return null;
+        return new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}+05:30`);
+      };
+      if (!fromDate || !toDate) return NextResponse.json({ error: "Both custom date boundaries are required" }, { status: 400 });
+      const from = parseIstDate(fromDate, false);
+      const to = parseIstDate(toDate, true);
+      if (!from || !to || from > to) return NextResponse.json({ error: "Invalid custom date range" }, { status: 400 });
+      where.openedAt = { gte: from, lte: to };
+    } else if (period && period !== "all") {
       // "Today"/period boundaries reasoned in IST, matching how the rest
       // of the app already reasons about the trading day (EOD square-off,
       // multi-symbol-watcher's daily trade cap, etc.) rather than the
@@ -101,7 +117,7 @@ export async function POST(req: NextRequest) {
     for (const f of req_) if (body[f] === undefined || body[f] === null) return NextResponse.json({ error: `Missing field: ${f}` }, { status: 400 });
     const existing = await db.tradeJournal.findUnique({ where: { alertId: body.alertId } });
     if (existing) return NextResponse.json({ trade: existing, duplicate: true });
-    const trade = await db.tradeJournal.create({ data: { alertId: body.alertId, symbol: body.symbol, action: body.action, optionType: body.optionType, strike: parseInt(body.strike, 10), entryPremium: parseFloat(body.entryPremium), stopLoss: parseFloat(body.stopLoss), target1: parseFloat(body.target1), target2: parseFloat(body.target2), target3: parseFloat(body.target3), entrySpot: parseFloat(body.entrySpot), confidence: parseInt(body.confidence, 10), sentiment: body.sentiment, dataSource: body.dataSource || "unknown", regime: body.regime || null, rationale: body.rationale, status: "OPEN" } });
+    const trade = await db.tradeJournal.create({ data: { alertId: body.alertId, symbol: body.symbol, action: body.action, optionType: body.optionType, strike: parseInt(body.strike, 10), entryPremium: parseFloat(body.entryPremium), stopLoss: parseFloat(body.stopLoss), target1: parseFloat(body.target1), target2: parseFloat(body.target2), target3: parseFloat(body.target3), entrySpot: parseFloat(body.entrySpot), confidence: parseInt(body.confidence, 10), sentiment: body.sentiment, dataSource: body.dataSource || "unknown", expiryDate: body.expiryDate || null, regime: body.regime || null, rationale: body.rationale, status: "OPEN" } });
     return NextResponse.json({ trade, created: true });
   } catch (err: any) { console.error("[trade-journal POST] error:", err); return NextResponse.json({ error: err?.message || String(err) || "Failed" }, { status: 500 }); }
 }
