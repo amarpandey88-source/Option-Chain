@@ -21,6 +21,11 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.14] - 2026-10-05
+- Keep market and trade-status refreshes active while the app is minimized.
+- Prevent overlapping background multi-symbol watcher scans.
+- Bound the in-memory history used to suppress duplicate winning-trade celebrations.
+
 ## [1.0.13] - 2026-09-30
 - Added persistent 5m, 15m and 30m RSI dashboard trend history.
 - Added a possible trend-reversal warning when 5-minute momentum turns against a confirmed 15/30-minute trend.

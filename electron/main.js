@@ -287,6 +287,7 @@ function createWindow() {
     title: "Option Chain Pulse",
     icon: path.join(__dirname, "icon.png"),
     webPreferences: {
+      backgroundThrottling: false,
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, "preload.js"),

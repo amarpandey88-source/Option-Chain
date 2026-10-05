@@ -124,7 +124,6 @@ export default function Home() {
     setDataSourceRaw(s);
   }, []);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshNonce, setRefreshNonce] = useState(0);
   const [activeTab, setActiveTab] = useState<Timeframe>("5min");
   const [mainView, setMainView] = useState<"overview" | "chain" | "smart">("overview");
   const [brokerConfigured, setBrokerConfigured] = useState(false);
@@ -160,11 +159,20 @@ export default function Home() {
   const { play: playAlertSound, preview: previewSound, celebrate: playWinSound } = useAlertSound(alertConfig.soundEnabled);
   const lastReversalAlertRef = useRef<{ key: string; at: number } | null>(null);
   const celebratedTradeAlertIdsRef = useRef(new Set<string>());
+  const rememberCelebratedTrade = useCallback((alertId: string) => {
+    const celebratedIds = celebratedTradeAlertIdsRef.current;
+    if (celebratedIds.has(alertId)) return false;
+    celebratedIds.add(alertId);
+    if (celebratedIds.size > 300) {
+      const oldestId = celebratedIds.values().next().value;
+      if (oldestId !== undefined) celebratedIds.delete(oldestId);
+    }
+    return true;
+  }, []);
   const celebrateWinningTrade = useCallback((alertId: string) => {
-    if (celebratedTradeAlertIdsRef.current.has(alertId)) return;
-    celebratedTradeAlertIdsRef.current.add(alertId);
+    if (!rememberCelebratedTrade(alertId)) return;
     playWinSound();
-  }, [playWinSound]);
+  }, [playWinSound, rememberCelebratedTrade]);
   const [activeTrade, setActiveTrade] = useState<{
     id: string; openedAt: number; action: "BUY CE" | "BUY PE"; strike: number;
     entryPremium: number; stopLossPremium: number; target1Premium: number; target2Premium: number; target3Premium: number;
@@ -176,10 +184,11 @@ export default function Home() {
 
   const queryClient = useQueryClient();
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ["option-chain", symbol, expiry, refreshNonce, dataSource],
+    queryKey: ["option-chain", symbol, expiry, dataSource],
     queryFn: () => fetchSnapshot(symbol, dataSource, expiry),
     enabled: dataSource === "nse" || brokerConfigured,
     refetchInterval: autoRefresh && (dataSource === "nse" || brokerConfigured) ? refreshIntervalSec * 1000 : false,
+    refetchIntervalInBackground: true,
     staleTime: refreshIntervalSec * 1000 - 1000,
     retry: 1,
   });
@@ -241,9 +250,9 @@ export default function Home() {
     return () => { es.close(); setLiveLtp(null); };
   }, [activeTrade?.id, activeTrade?.strike, activeTrade?.optionType, dataSource, brokerProvider]);
 
-  const handleRefresh = useCallback(() => { setRefreshNonce(n => n + 1); refetch(); }, [refetch]);
-  const handleSymbolChange = useCallback((s: Symbol) => { setSymbol(s); setExpiry(undefined); setRefreshNonce(n => n + 1); setActiveTrade(null); }, []);
-  const handleExpiryChange = useCallback((e: string | undefined) => { setExpiry(e); setRefreshNonce(n => n + 1); }, []);
+  const handleRefresh = useCallback(() => { refetch(); }, [refetch]);
+  const handleSymbolChange = useCallback((s: Symbol) => { setSymbol(s); setExpiry(undefined); setActiveTrade(null); }, []);
+  const handleExpiryChange = useCallback((e: string | undefined) => { setExpiry(e); }, []);
 
   // Smoothly animates the spot price between real polls instead of jumping
   // straight to the new value on each refresh — makes the live numbers feel
@@ -431,6 +440,7 @@ export default function Home() {
     queryKey: ["trade-journal-today"],
     queryFn: async () => { const res = await fetch("/api/trade-journal?limit=200", { cache: "no-store" }); if (!res.ok) throw new Error("Failed"); return res.json(); },
     refetchInterval: 15000,
+    refetchIntervalInBackground: true,
     staleTime: 10000,
   });
   const journalWinsLoadedRef = useRef(false);
@@ -439,7 +449,7 @@ export default function Home() {
     if (!trades) return;
     if (!journalWinsLoadedRef.current) {
       for (const trade of trades) {
-        if (trade.status !== "OPEN" && (trade.totalPnl ?? 0) > 0) celebratedTradeAlertIdsRef.current.add(trade.alertId);
+        if (trade.status !== "OPEN" && (trade.totalPnl ?? 0) > 0) rememberCelebratedTrade(trade.alertId);
       }
       journalWinsLoadedRef.current = true;
       return;
@@ -447,7 +457,7 @@ export default function Home() {
     for (const trade of trades) {
       if (trade.status !== "OPEN" && (trade.totalPnl ?? 0) > 0) celebrateWinningTrade(trade.alertId);
     }
-  }, [journalTodayData, celebrateWinningTrade]);
+  }, [journalTodayData, celebrateWinningTrade, rememberCelebratedTrade]);
   const tradesToday = (() => {
     if (!journalTodayData?.trades) return 0;
     const todayKey = new Date().toISOString().slice(0, 10);

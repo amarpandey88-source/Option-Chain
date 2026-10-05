@@ -45,6 +45,7 @@ const DAILY_LOSS_LIMIT_PER_SYMBOL = 2000;
 const COOLOFF_AFTER_LOSS_MIN = 15;
 
 let started = false;
+let tickInProgress = false;
 let activelyViewedSymbol: Symbol | null = null;
 let activelyViewedAt = 0;
 const ACTIVE_VIEW_TIMEOUT_MS = 90_000; // if the frontend stops sending heartbeats (tab closed, etc.), release the symbol back to background watching after this long
@@ -284,7 +285,7 @@ async function getTodayStatsForSymbol(symbol: Symbol): Promise<{ count: number; 
   }
 }
 
-async function tick() {
+async function runTick() {
   // The watcher is a trade-alert path, so estimated Yahoo/NSE data must never
   // be allowed to create an entry. The dashboard can still use NSE mode for
   // view-only analysis, but background monitoring requires a real broker feed.
@@ -363,6 +364,16 @@ async function tick() {
     fireCandidates.sort((a, b) => b.snapshot.overallSignal.confidence - a.snapshot.overallSignal.confidence);
     const best = fireCandidates[0];
     await fireTrade(best.symbol, best.snapshot, best.dataSourceLabel);
+  }
+}
+
+async function tick() {
+  if (tickInProgress) return;
+  tickInProgress = true;
+  try {
+    await runTick();
+  } finally {
+    tickInProgress = false;
   }
 }
 

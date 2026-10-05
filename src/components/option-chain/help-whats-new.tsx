@@ -8,6 +8,16 @@ import {
 
 const updates = [
   {
+    version: "v1.0.14",
+    date: "05 Oct 2026",
+    title: "Background refresh reliability",
+    items: [
+      "Keep market and trade-status refreshes active while the app is minimized.",
+      "Prevent overlapping background multi-symbol watcher scans.",
+      "Bound the in-memory history used to suppress duplicate winning-trade celebrations.",
+    ],
+  },
+  {
     version: "v1.0.13",
     date: "30 Sep 2026",
     title: "Market history and trade workflow improvements",
