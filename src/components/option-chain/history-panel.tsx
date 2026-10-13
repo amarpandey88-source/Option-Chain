@@ -15,13 +15,24 @@ interface HistoryPanelProps {
 }
 
 export function HistoryPanel({ history }: HistoryPanelProps) {
-  const spotValues = history.spot.map((d) => d.v);
-  const pcrValues = history.pcr.map((d) => d.v);
-  const vixValues = history.vix.map((d) => d.v);
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recentPoints = (points: { t: string; v: number }[]) =>
+    points.filter((point) => Date.parse(point.t) >= sevenDaysAgo);
+  const recentHistory = {
+    spot: recentPoints(history.spot),
+    pcr: recentPoints(history.pcr),
+    vix: recentPoints(history.vix),
+    rsi5: recentPoints(history.rsi5),
+    rsi15: recentPoints(history.rsi15),
+    rsi30: recentPoints(history.rsi30),
+  };
+  const spotValues = recentHistory.spot.map((d) => d.v);
+  const pcrValues = recentHistory.pcr.map((d) => d.v);
+  const vixValues = recentHistory.vix.map((d) => d.v);
   const rsiRows = [
-    { label: "RSI 5m", data: history.rsi5, color: "#f472b6" },
-    { label: "RSI 15m", data: history.rsi15, color: "#fb923c" },
-    { label: "RSI 30m", data: history.rsi30, color: "#60a5fa" },
+    { label: "RSI 5m", data: recentHistory.rsi5, color: "#f472b6" },
+    { label: "RSI 15m", data: recentHistory.rsi15, color: "#fb923c" },
+    { label: "RSI 30m", data: recentHistory.rsi30, color: "#60a5fa" },
   ];
 
   const spotChange = spotValues.length
@@ -36,12 +47,12 @@ export function HistoryPanel({ history }: HistoryPanelProps) {
       <h3 className="text-sm font-semibold text-slate-200 mb-2">
         Market Trend · Recent History
       </h3>
-      <div className="space-y-2.5">
+      <div className="max-h-[300px] space-y-2.5 overflow-y-auto overscroll-contain pr-1">
         <TrendRow
           label="Spot"
           value={spotValues[spotValues.length - 1]?.toFixed(2) ?? "—"}
           change={spotChangePct}
-          data={history.spot}
+          data={recentHistory.spot}
           color="#10b981"
         />
         <TrendRow
@@ -53,7 +64,7 @@ export function HistoryPanel({ history }: HistoryPanelProps) {
               : 0
           }
           changeUnit=""
-          data={history.pcr}
+          data={recentHistory.pcr}
           color="#f59e0b"
         />
         <TrendRow
@@ -65,7 +76,7 @@ export function HistoryPanel({ history }: HistoryPanelProps) {
               : 0
           }
           changeUnit=""
-          data={history.vix}
+          data={recentHistory.vix}
           color="#06b6d4"
         />
         {rsiRows.map(({ label, data, color }) => {

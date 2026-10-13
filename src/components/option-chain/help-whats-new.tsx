@@ -8,6 +8,14 @@ import {
 
 const updates = [
   {
+    version: "v1.0.15",
+    date: "13 Oct 2026",
+    title: "Market history charts",
+    items: [
+      "Limit Market Trend charts to the latest 7 days and scroll vertically to view the remaining charts.",
+    ],
+  },
+  {
     version: "v1.0.14",
     date: "05 Oct 2026",
     title: "Background refresh reliability",

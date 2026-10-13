@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.15] - 2026-10-13
+- Limit Market Trend charts to the latest 7 days and make the chart list vertically scrollable.
+
 ## [1.0.14] - 2026-10-05
 - Keep market and trade-status refreshes active while the app is minimized.
 - Prevent overlapping background multi-symbol watcher scans.
