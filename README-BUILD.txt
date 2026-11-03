@@ -14,8 +14,10 @@ REQUIREMENTS (on your Windows PC)
 1. Windows 10 or Windows 11 (64-bit)
 2. Node.js 20 or newer — download from https://nodejs.org
    (Choose the "LTS" version, install with default options)
-3. 2 GB free disk space
-4. Internet connection (downloads ~500 MB during first build)
+3. Python 3.11 or newer — download from https://python.org
+   Enable "Add Python to PATH" during installation.
+4. 3 GB free disk space
+5. Internet connection (downloads Node/Python packages during first build)
 
 STEP-BY-STEP BUILD INSTRUCTIONS
 -------------------------------
@@ -35,7 +37,8 @@ STEP-BY-STEP BUILD INSTRUCTIONS
      build-windows.bat
 
    The script will:
-     - Install all dependencies (3-5 minutes)
+       - Install Python/Pandas and build the bundled market-data worker
+       - Install all Node dependencies (3-5 minutes)
      - Install Electron (1-2 minutes)
      - Build the Next.js app (1-2 minutes)
      - Package the .exe installer (2-5 minutes)
@@ -101,6 +104,11 @@ Q: Build fails with "Python not found"
 A: Some packages need Python. Install from https://python.org
    Make sure to check "Add Python to PATH" during install.
 
+Q: The build fails while installing Pandas or PyInstaller
+A: Confirm that Python 3.11+ is available with `python --version`, then run:
+   npm run python:build
+   Run `build-windows.bat` again after the worker build completes.
+
 Q: Antivirus blocks the .exe
 A: This is common with Electron apps. Add an exception in your
    antivirus for the "release" folder. The .exe is safe — it's
@@ -132,6 +140,7 @@ WHAT THE .EXE INCLUDES
 - Trade journal with SQLite database
 - Sound + visual alerts
 - Multi-timeframe signal analysis
+- Bundled Pandas worker for option-chain Greeks and rolling signal calculations
 - Active trade P&L tracking
 - Electron runtime (Chromium browser, ~150 MB)
 

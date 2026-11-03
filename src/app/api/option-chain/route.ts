@@ -20,6 +20,7 @@ import { applyAdaptiveConfidence } from "@/lib/adaptive-confidence";
 import { ensureWatcherStarted } from "@/lib/multi-symbol-watcher";
 import { persistMarketHistory } from "@/lib/market-history";
 import { OptionChainSnapshot, Symbol } from "@/lib/types";
+import { enrichWithPandas } from "@/lib/pandas-worker";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -42,6 +43,27 @@ async function withPersistedHistory(snapshot: OptionChainSnapshot, symbol: Symbo
   }
 }
 
+function daysUntilExpiry(expiry: string): number {
+  const expiryTime = Date.parse(expiry);
+  if (!Number.isFinite(expiryTime)) return 0;
+  return Math.max(0, (expiryTime - Date.now()) / 86_400_000);
+}
+
+async function withPandasData(snapshot: OptionChainSnapshot) {
+  const pandas = await enrichWithPandas({
+    symbol: snapshot.metrics.symbol,
+    spot: snapshot.metrics.spot,
+    pcr: snapshot.metrics.pcr,
+    indiaVix: snapshot.metrics.indiaVix,
+    atmStrike: snapshot.metrics.atmStrike,
+    daysToExpiry: daysUntilExpiry(snapshot.recommendation.expiry),
+    expiry: snapshot.recommendation.expiry,
+    timestamp: snapshot.metrics.updatedAt,
+    chain: snapshot.chain,
+  });
+  return pandas ? { ...snapshot, pandasData: pandas } : snapshot;
+}
+
 export async function GET(req: NextRequest) {
   // Lazily starts the background multi-symbol watcher (see
   // multi-symbol-watcher.ts) the first time this route is ever hit — i.e.
@@ -62,7 +84,7 @@ export async function GET(req: NextRequest) {
   if (source === "nse") {
     try {
       const s = await generateSnapshotYahoo(sym, expiry);
-      const snapshot = await withPersistedHistory(s, sym, "nse");
+      const snapshot = await withPandasData(await withPersistedHistory(s, sym, "nse"));
       return NextResponse.json(
         { ...snapshot, dataSource: "nse-view-only", alertsAllowed: false },
         { headers: noStoreHeaders }
@@ -93,7 +115,7 @@ export async function GET(req: NextRequest) {
   try {
     const raw = await generateSnapshotBroker(sym, expiry);
     const s = await applyAdaptiveConfidence(raw);
-    const snapshot = await withPersistedHistory(s, sym, "broker");
+    const snapshot = await withPandasData(await withPersistedHistory(s, sym, "broker"));
     return NextResponse.json(
       { ...snapshot, dataSource: `broker-${getConfiguredBroker()}`, alertsAllowed: true },
       { headers: noStoreHeaders }

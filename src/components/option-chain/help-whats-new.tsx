@@ -9,6 +9,14 @@ import {
 const updates = [
   {
     version: "v1.0.15",
+    date: "03 Nov 2026",
+    title: "Bundled Pandas market data worker",
+    items: [
+      "Bundle the Fyers-compatible Pandas worker with Windows builds for option-chain OI/LTP/IV rows, ATM Greeks, and rolling RSI/EMA trend calculations.",
+    ],
+  },
+  {
+    version: "v1.0.15",
     date: "13 Oct 2026",
     title: "Market history charts",
     items: [

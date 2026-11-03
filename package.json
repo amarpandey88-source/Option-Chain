@@ -1,6 +1,6 @@
 {
   "name": "option-chain-pulse",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "Real-time Indian index option chain analyzer with PCR, India VIX, smart-money flow, GEX, and multi-timeframe (5m/15m/30m) trade signals — for personal desktop trading use.",
   "author": "Amar",
   "private": true,
@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev -p 3000 --webpack",
     "build": "node scripts/clean-next.js && next build --webpack && node scripts/postbuild.js",
+    "python:build": "node scripts/build-python-worker.mjs",
     "start": "next start -p 3000",
     "lint": "eslint .",
     "postinstall": "prisma generate",
@@ -17,9 +18,9 @@
     "db:reset": "prisma migrate reset",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron electron/main.js\"",
     "electron:build": "node scripts/clean-next.js && next build --webpack && node scripts/postbuild.js",
-    "dist": "npm run electron:build && electron-builder --win --x64",
-    "dist:portable": "npm run electron:build && electron-builder --win portable --x64",
-    "dist:publish": "npm run electron:build && electron-builder --win --x64 --publish always"
+    "dist": "npm run python:build && npm run electron:build && electron-builder --win --x64",
+    "dist:portable": "npm run python:build && npm run electron:build && electron-builder --win portable --x64",
+    "dist:publish": "npm run python:build && npm run electron:build && electron-builder --win --x64 --publish always"
   },
   "build": {
     "npmRebuild": false,
@@ -41,6 +42,7 @@
     "files": [
       ".next/**",
       "public/**",
+      "python/**",
       "prisma/**",
       "electron/**",
       "node_modules/**",
@@ -63,6 +65,10 @@
     ],
     "asar": false,
     "extraResources": [
+      {
+        "from": "python-dist",
+        "to": "python"
+      },
       {
         "from": "db",
         "to": "app/db"

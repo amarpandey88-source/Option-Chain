@@ -21,6 +21,11 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.16] - 2026-11-03
+- Added a bundled Pandas/PyInstaller worker for option-chain Greeks and rolling signal calculations.
+- Integrated Pandas enrichment into option-chain responses with graceful fallback when the worker is unavailable.
+- Updated Windows build scripts and packaging metadata to include the Python worker in installer builds.
+
 ## [1.0.15] - 2026-10-13
 - Limit Market Trend charts to the latest 7 days and make the chart list vertically scrollable.
 
