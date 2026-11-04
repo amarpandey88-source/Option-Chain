@@ -21,6 +21,11 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.18] - 2026-11-04
+- Added Fyers WebSocket live LTP integration.
+- Reduced REST API usage through caching and throttling.
+- Made background monitoring safer.
+
 ## [1.0.17] - 2026-11-04
 - Added Quantity, Gross Profit, Trading Charges and Net Profit/Loss columns to the Trade Journal, with charges deducted from gross profit using Net Profit = Gross Profit - Trading Charges.
 - Added XLS export and a print-ready PDF view for the filtered Trade Journal.
