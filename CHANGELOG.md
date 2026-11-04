@@ -21,6 +21,10 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.19] - 2026-11-04
+- Included the Fyers WebSocket/API usage reduction changes in the published application build.
+- Added the missing Windows release assets needed by the Electron auto-updater workflow.
+
 ## [1.0.18] - 2026-11-04
 - Added Fyers WebSocket live LTP integration.
 - Reduced REST API usage through caching and throttling.

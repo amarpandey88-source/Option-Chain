@@ -49,6 +49,9 @@ interface SocketHandle {
 
 let handle: SocketHandle | null = null;
 const IDLE_CLOSE_MS = 2 * 60 * 1000; // close the socket 2 min after the last subscriber leaves — cheap to reopen, no reason to hold a connection with nothing subscribed
+const latestTicks = new Map<string, FyersTick>();
+const marketSubscriptions = new Set<string>();
+const marketListeners = new Map<string, TickListener>();
 
 // Debug visibility for the exact issue flagged above: if ticks are
 // connecting but nothing ever renders live, the most likely cause is that
@@ -97,12 +100,14 @@ function ensureSocket(appId: string, accessToken: string): SocketHandle {
   skt.on("message", (msg: any) => {
     const parsed = extractLtp(msg);
     if (!parsed) return;
+    latestTicks.set(parsed.symbol, { symbol: parsed.symbol, ltp: parsed.ltp, ts: Date.now() });
     const listeners = h.subscribers.get(parsed.symbol);
     if (!listeners || listeners.size === 0) return;
     const tick: FyersTick = { symbol: parsed.symbol, ltp: parsed.ltp, ts: Date.now() };
     for (const fn of listeners) {
       try { fn(tick); } catch (err) { console.error("[fyers-tick-stream] listener error:", err); }
     }
+
   });
   skt.on("error", (err: any) => console.error("[fyers-tick-stream] socket error:", err));
   skt.on("close", () => { h.connected = false; console.log("[fyers-tick-stream] DEBUG WebSocket closed"); });
@@ -118,6 +123,40 @@ function ensureSocket(appId: string, accessToken: string): SocketHandle {
   skt.connect();
   handle = h;
   return h;
+}
+
+export function getLatestFyersTick(symbol: string, maxAgeMs = 15_000): FyersTick | null {
+  const tick = latestTicks.get(symbol);
+  return tick && Date.now() - tick.ts <= maxAgeMs ? tick : null;
+}
+
+// Keep a small, shared WebSocket market feed for the current underlying and
+// option-chain symbols. The REST chain remains authoritative for OI and
+// contract membership; ticks only replace fast-moving LTP values.
+export function ensureFyersMarketSubscriptions(
+  symbols: string[],
+  appId: string,
+  accessToken: string,
+): void {
+  const h = ensureSocket(appId, accessToken);
+  const newSymbols = symbols.filter(symbol => symbol && !marketSubscriptions.has(symbol));
+  if (newSymbols.length === 0) return;
+  for (const symbol of newSymbols) {
+    marketSubscriptions.add(symbol);
+    let listeners = h.subscribers.get(symbol);
+    if (!listeners) {
+      listeners = new Set();
+      h.subscribers.set(symbol, listeners);
+    }
+    const marketListener = marketListeners.get(symbol) ?? (() => {});
+    marketListeners.set(symbol, marketListener);
+    listeners.add(marketListener);
+    if (h.connected) {
+      try { h.skt.subscribe([symbol]); } catch (err) {
+        console.error("[fyers-tick-stream] market subscription failed:", err);
+      }
+    }
+  }
 }
 
 function scheduleIdleClose() {

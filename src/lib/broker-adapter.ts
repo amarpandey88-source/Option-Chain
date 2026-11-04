@@ -26,6 +26,7 @@ import { fetchFyersMarketData } from "./fyers-market-data";
 import { getDefaultExpiry, daysUntil } from "./expiry-utils";
 import { randomUUID, createHash } from "node:crypto";
 import { computeSmartSignal } from "./smart-signal-engine";
+import { ensureFyersMarketSubscriptions, getLatestFyersTick } from "./fyers-tick-stream";
 import https from "node:https";
 
 // Node's built-in fetch() refuses to send a body on a GET request (it
@@ -441,7 +442,29 @@ async function fetchGrowwOptionChain(symbol: Symbol, expiryOverride?: string) {
 // shared mapToOptionChainRows() below derives real IV from the real LTP
 // (reverse Black-Scholes), same as it already does for ICICI.
 // ----------------------------------------------------------------------------
+const FYERS_CHAIN_CACHE_MS = 60_000;
+const fyersChainCache = new Map<string, { expiresAt: number; value: { rows: any[]; indiaVix?: number } }>();
+const fyersChainInFlight = new Map<string, Promise<{ rows: any[]; indiaVix?: number }>>();
+
 async function fetchFyersOptionChain(symbol: Symbol, expiryOverride?: string): Promise<{ rows: any[]; indiaVix?: number }> {
+  const cfg = getBrokerConfig().fyers;
+  const cacheKey = `${cfg.appId}:${symbol}:${expiryOverride || "nearest"}`;
+  const cached = fyersChainCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const pending = fyersChainInFlight.get(cacheKey);
+  if (pending) return pending;
+
+  const request = fetchFyersOptionChainUncached(symbol, expiryOverride)
+    .then(value => {
+      fyersChainCache.set(cacheKey, { expiresAt: Date.now() + FYERS_CHAIN_CACHE_MS, value });
+      return value;
+    })
+    .finally(() => { fyersChainInFlight.delete(cacheKey); });
+  fyersChainInFlight.set(cacheKey, request);
+  return request;
+}
+
+async function fetchFyersOptionChainUncached(symbol: Symbol, expiryOverride?: string): Promise<{ rows: any[]; indiaVix?: number }> {
   const cfg = getBrokerConfig().fyers;
   const fySymbolMap: Record<Symbol, string> = {
     NIFTY: "NSE:NIFTY50-INDEX",
@@ -742,6 +765,26 @@ export async function generateSnapshotBroker(symbol: Symbol, expiryOverride?: st
   const chain = mapToOptionChainRows(brokerRows, spot, symbol, expiryOverride);
   if (chain.length === 0) {
     throw new Error(`Broker (${cfg.provider}) returned an empty option chain for ${symbol}. Refusing to fall back to simulated/estimated chain data.`);
+  }
+
+  if (cfg.provider === "fyers") {
+    const fyUnderlying: Record<Symbol, string> = {
+      NIFTY: "NSE:NIFTY50-INDEX",
+      BANKNIFTY: "NSE:NIFTYBANK-INDEX",
+      SENSEX: "BSE:SENSEX-INDEX",
+    };
+    ensureFyersMarketSubscriptions([
+      fyUnderlying[symbol],
+      ...chain.flatMap(row => [row.ceFySymbol, row.peFySymbol].filter((value): value is string => Boolean(value))),
+    ], cfg.fyers.appId, cfg.fyers.accessToken);
+    const liveSpot = getLatestFyersTick(fyUnderlying[symbol])?.ltp;
+    if (liveSpot && liveSpot > 0) spot = liveSpot;
+    for (const row of chain) {
+      const liveCe = row.ceFySymbol ? getLatestFyersTick(row.ceFySymbol)?.ltp : undefined;
+      const livePe = row.peFySymbol ? getLatestFyersTick(row.peFySymbol)?.ltp : undefined;
+      if (liveCe && liveCe > 0) row.ceLtp = liveCe;
+      if (livePe && livePe > 0) row.peLtp = livePe;
+    }
   }
 
   // Real brokers here don't give us OI *change* directly — derive it

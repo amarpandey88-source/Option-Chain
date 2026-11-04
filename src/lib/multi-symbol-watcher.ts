@@ -32,7 +32,7 @@ import { isPastNewEntryCutoff } from "./market-hours";
 // ============================================================================
 
 const ALL_SYMBOLS: Symbol[] = ["NIFTY", "BANKNIFTY", "SENSEX"];
-const POLL_INTERVAL_MS = 20_000;
+const POLL_INTERVAL_MS = 120_000;
 const HIGH_CONFIDENCE_THRESHOLD = 80;
 const LOT_SIZE: Record<Symbol, number> = { NIFTY: 65, BANKNIFTY: 30, SENSEX: 20 };
 // Same discipline the live dashboard's own alert engine already applies

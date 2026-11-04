@@ -8,10 +8,13 @@ import {
 
 const updates = [
   {
-    version: "v1.0.17",
+    version: "v1.0.19",
     date: "04 Nov 2026",
-    title: "Trade Journal profit breakdown",
+    title: "Fyers API usage protection and Trade Journal",
     items: [
+      "Cache shared Fyers option-chain, quote and candle requests to reduce duplicate API calls and avoid Standard-plan daily request-limit errors.",
+      "Use Fyers WebSocket ticks for fresh underlying and option premiums while keeping REST snapshots for authoritative OI and PCR metrics.",
+      "Slow background monitoring to a safe two-minute cycle while preserving live tick monitoring for open trades.",
       "Add Quantity, Gross Profit, Trading Charges and Net Profit/Loss columns, with charges deducted from gross profit using Net Profit = Gross Profit - Trading Charges.",
       "Export the filtered Trade Journal to an Excel-compatible XLS file or a print-ready PDF view.",
     ],

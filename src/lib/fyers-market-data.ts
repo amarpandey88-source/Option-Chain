@@ -35,6 +35,13 @@ const FYERS_SYMBOL: Record<"NIFTY" | "BANKNIFTY", string> = {
 
 interface FyersQuoteResult { ltp: number; prevClose: number }
 
+const QUOTES_CACHE_MS = 60_000;
+const CANDLES_CACHE_MS = 5 * 60_000;
+let quotesCache: { key: string; expiresAt: number; value: Record<string, FyersQuoteResult> } | null = null;
+let quotesInFlight: Promise<Record<string, FyersQuoteResult>> | null = null;
+const candlesCache = new Map<string, { expiresAt: number; value: Candle[] }>();
+const candlesInFlight = new Map<string, Promise<Candle[]>>();
+
 // One call, comma-separated symbols — used to get real, current LTP +
 // previous close for the underlying (and Bank Nifty as a proxy indicator)
 // in a single round trip.
@@ -43,9 +50,30 @@ export async function fetchFyersQuotes(
   appId: string,
   accessToken: string
 ): Promise<Record<string, FyersQuoteResult>> {
+  const key = `${appId}:${symbols.slice().sort().join(",")}`;
+  if (quotesCache?.key === key && quotesCache.expiresAt > Date.now()) return quotesCache.value;
+  if (quotesInFlight) return quotesInFlight;
+
+  quotesInFlight = fetchFyersQuotesUncached(symbols, appId, accessToken)
+    .then(value => {
+      quotesCache = { key, expiresAt: Date.now() + QUOTES_CACHE_MS, value };
+      return value;
+    })
+    .finally(() => { quotesInFlight = null; });
+  return quotesInFlight;
+}
+
+async function fetchFyersQuotesUncached(
+  symbols: string[],
+  appId: string,
+  accessToken: string
+): Promise<Record<string, FyersQuoteResult>> {
   const url = `https://api-t1.fyers.in/data/quotes?symbols=${encodeURIComponent(symbols.join(","))}`;
   const res = await fetch(url, { headers: { Authorization: `${appId}:${accessToken}` } });
-  if (!res.ok) throw new Error(`Fyers quotes failed: HTTP ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Fyers quotes failed: HTTP ${res.status} — ${text.slice(0, 200)}`);
+  }
   const json = await res.json();
   if (json.s !== "ok" || !Array.isArray(json.d)) {
     throw new Error(`Fyers quotes failed: ${json.message || "unexpected response shape"}`);
@@ -73,6 +101,27 @@ export async function fetchFyersCandles(
   appId: string,
   accessToken: string
 ): Promise<Candle[]> {
+  const key = `${appId}:${fySymbol}`;
+  const cached = candlesCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const pending = candlesInFlight.get(key);
+  if (pending) return pending;
+
+  const request = fetchFyersCandlesUncached(fySymbol, appId, accessToken)
+    .then(value => {
+      candlesCache.set(key, { expiresAt: Date.now() + CANDLES_CACHE_MS, value });
+      return value;
+    })
+    .finally(() => { candlesInFlight.delete(key); });
+  candlesInFlight.set(key, request);
+  return request;
+}
+
+async function fetchFyersCandlesUncached(
+  fySymbol: string,
+  appId: string,
+  accessToken: string
+): Promise<Candle[]> {
   const now = Math.floor(Date.now() / 1000);
   const fiveDaysAgo = now - 5 * 24 * 60 * 60; // covers weekends/holidays comfortably for ~2 trading days of 5-min bars
   const params = new URLSearchParams({
@@ -85,7 +134,10 @@ export async function fetchFyersCandles(
   });
   const url = `https://api-t1.fyers.in/data/history?${params.toString()}`;
   const res = await fetch(url, { headers: { Authorization: `${appId}:${accessToken}` } });
-  if (!res.ok) throw new Error(`Fyers history failed: HTTP ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Fyers history failed: HTTP ${res.status} — ${text.slice(0, 200)}`);
+  }
   const json = await res.json();
   if (json.s !== "ok" || !Array.isArray(json.candles)) {
     // "no_data" is Fyers' own status for "market not open yet today, no
