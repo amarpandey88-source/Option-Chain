@@ -67,6 +67,8 @@ model TradeJournal {
   exitPremium     Float?
   pnlPerLot       Float?
   totalPnl        Float?
+  tradingCharges  Float   @default(0)
+  netPnl          Float?
   pnlPercent      Float?
   durationSec     Int?
   rationale       String

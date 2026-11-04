@@ -21,6 +21,10 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.17] - 2026-11-04
+- Added Quantity, Gross Profit, Trading Charges and Net Profit/Loss columns to the Trade Journal, with charges deducted from gross profit using Net Profit = Gross Profit - Trading Charges.
+- Added XLS export and a print-ready PDF view for the filtered Trade Journal.
+
 ## [1.0.16] - 2026-11-03
 - Added a bundled Pandas/PyInstaller worker for option-chain Greeks and rolling signal calculations.
 - Integrated Pandas enrichment into option-chain responses with graceful fallback when the worker is unavailable.

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, TrendingDown, Trash2, History, RefreshCw, LogOut, Filter } from "lucide-react";
+import { TrendingUp, TrendingDown, Trash2, History, RefreshCw, LogOut, Filter, FileSpreadsheet, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { getDefaultExpiry } from "@/lib/expiry-utils";
@@ -18,7 +18,7 @@ interface TradeEntry {
   id: string; alertId: string; symbol: string; action: string; optionType: string; strike: number;
   entryPremium: number; stopLoss: number; target1: number; target2: number; target3: number;
   entrySpot: number; confidence: number; sentiment: string; rationale: string; status: string;
-  exitSpot: number | null; exitPremium: number | null; pnlPerLot: number | null; totalPnl: number | null;
+  exitSpot: number | null; exitPremium: number | null; pnlPerLot: number | null; totalPnl: number | null; tradingCharges: number; netPnl: number | null;
   pnlPercent: number | null; durationSec: number | null; exitReason: string | null;
   openedAt: string; closedAt: string | null; dataSource: string; expiryDate: string | null;
 }
@@ -39,6 +39,64 @@ const RESULT_STYLE: Record<string, { label: string; text: string }> = {
   MANUAL_CLOSE: { label: "Closed manually", text: "text-slate-300" },
   EOD_SQUAREOFF: { label: "EOD square-off (3:15 PM)", text: "text-amber-300" },
 };
+
+const EXPORT_HEADERS = ["S.No.", "Date", "Time", "Index", "Strike", "Type", "Qty", "Entry", "LTP", "SL", "Exit price", "Gross Profit", "Trading Charges", "Net Profit/Loss", "Result"];
+
+function exportRows(trades: TradeEntry[], liveLtpByAlert: Record<string, number>) {
+  return trades.map((trade, index) => {
+    const isOpen = trade.status === "OPEN";
+    const grossProfit = trade.totalPnl ?? 0;
+    const tradingCharges = trade.tradingCharges ?? 0;
+    const netProfitLoss = trade.netPnl ?? (grossProfit - tradingCharges);
+    const opened = new Date(trade.openedAt);
+    const ltpValue = isTradeExpired(trade) ? 0 : liveLtpByAlert[trade.alertId] ?? trade.exitPremium ?? null;
+    return [
+      index + 1,
+      opened.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+      opened.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false }),
+      trade.symbol,
+      trade.strike,
+      trade.optionType,
+      lotSizeFor(trade.symbol),
+      trade.entryPremium.toFixed(2),
+      ltpValue == null ? "" : ltpValue.toFixed(2),
+      trade.stopLoss.toFixed(2),
+      trade.exitPremium == null ? "" : trade.exitPremium.toFixed(2),
+      isOpen || trade.totalPnl == null ? "" : grossProfit.toFixed(2),
+      isOpen ? "" : tradingCharges.toFixed(2),
+      isOpen || trade.totalPnl == null ? "" : netProfitLoss.toFixed(2),
+      RESULT_STYLE[trade.status]?.label ?? trade.status,
+    ];
+  });
+}
+
+function escapeHtml(value: unknown) {
+  return String(value).replace(/[&<>'"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character] ?? character));
+}
+
+function exportTradeJournalXls(trades: TradeEntry[], liveLtpByAlert: Record<string, number>) {
+  const rows = [EXPORT_HEADERS, ...exportRows(trades, liveLtpByAlert)];
+  const table = rows.map(row => `<tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("");
+  const workbook = `<html><head><meta charset="UTF-8"></head><body><table>${table}</table></body></html>`;
+  const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `trade-journal-${new Date().toISOString().slice(0, 10)}.xls`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportTradeJournalPdf(trades: TradeEntry[], liveLtpByAlert: Record<string, number>) {
+  const printWindow = window.open("", "_blank", "width=1200,height=800");
+  if (!printWindow) return;
+  const rows = [EXPORT_HEADERS, ...exportRows(trades, liveLtpByAlert)];
+  const table = rows.map((row, rowIndex) => `<tr>${row.map(value => rowIndex === 0 ? `<th>${escapeHtml(value)}</th>` : `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("");
+  printWindow.document.write(`<html><head><title>Trade Journal</title><style>body{font-family:Arial,sans-serif;color:#111;padding:20px}h1{font-size:20px;margin:0 0 6px}p{font-size:11px;color:#555;margin:0 0 16px}table{border-collapse:collapse;width:100%;font-size:10px}th,td{border:1px solid #bbb;padding:5px;text-align:right;white-space:nowrap}th{background:#e8edf2;text-align:center}th:nth-child(1),th:nth-child(2),th:nth-child(3),th:nth-child(4),th:nth-child(6),th:nth-child(15),td:nth-child(1),td:nth-child(2),td:nth-child(3),td:nth-child(4),td:nth-child(6),td:nth-child(15){text-align:left}@media print{body{padding:0}}</style></head><body><h1>Trade Journal</h1><p>Exported on ${escapeHtml(new Date().toLocaleString("en-IN"))} · ${trades.length} record(s)</p><table>${table}</table></body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
 
 async function fetchTrades(filters: { period: string; fromDate: string; toDate: string; result: string; symbol: string; action: string; source: string }): Promise<{ trades: TradeEntry[]; stats: TradeStats }> {
   const params = new URLSearchParams({ limit: "200" });
@@ -73,6 +131,7 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
   const [confirmClear, setConfirmClear] = useState(false);
   const [exitTarget, setExitTarget] = useState<TradeEntry | null>(null);
   const [exitPriceInput, setExitPriceInput] = useState("");
+  const [tradingChargesInput, setTradingChargesInput] = useState("0");
   const [period, setPeriod] = useState("all");
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
@@ -121,11 +180,12 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
       const lotSize = lotSizeFor(trade.symbol);
       const pnlPerLot = exitPremium - trade.entryPremium;
       const totalPnl = pnlPerLot * lotSize;
+      const tradingCharges = Math.max(0, Number(tradingChargesInput) || 0);
       const pnlPercent = (pnlPerLot / trade.entryPremium) * 100;
       const durationSec = Math.round((Date.now() - new Date(trade.openedAt).getTime()) / 1000);
       const res = await fetch(`/api/trade-journal/${trade.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "MANUAL_CLOSE", exitReason: "Closed manually from Trade Journal", exitPremium, exitSpot: currentSpot ?? trade.entrySpot, pnlPerLot, totalPnl, pnlPercent, durationSec }),
+        body: JSON.stringify({ status: "MANUAL_CLOSE", exitReason: "Closed manually from Trade Journal", exitPremium, exitSpot: currentSpot ?? trade.entrySpot, pnlPerLot, totalPnl, tradingCharges, pnlPercent, durationSec }),
       });
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed"); }
       return { trade, ...(await res.json()) };
@@ -140,7 +200,7 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
       // already closed here, which is exactly the kind of disconnect that
       // caused confusion earlier in this app.
       onExternalClose?.(trade.alertId);
-      setExitTarget(null); setExitPriceInput("");
+      setExitTarget(null); setExitPriceInput(""); setTradingChargesInput("0");
     },
   });
   const stats = data?.stats ?? { total: 0, open: 0, closed: 0, wins: 0, losses: 0, winRate: 0, totalPnl: 0, avgWin: 0, avgLoss: 0 };
@@ -152,6 +212,8 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
         <div className="flex items-center gap-2"><History className="h-4 w-4 text-amber-400" /><h3 className="text-sm font-semibold text-slate-200">Trade Journal</h3><Badge variant="outline" className="text-[10px] font-mono bg-[#0a0e14] border-[#1c2530] text-slate-400">{stats.total} total</Badge>{isFetching && <RefreshCw className="h-3 w-3 animate-spin text-slate-500" />}</div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-slate-400 hover:text-slate-100" onClick={() => refetch()}><RefreshCw className="h-3 w-3 mr-1" />Refresh</Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-emerald-400 hover:text-emerald-300" disabled={trades.length === 0} onClick={() => exportTradeJournalXls(trades, liveLtpByAlert)} title="Export filtered journal as Excel file"><FileSpreadsheet className="h-3 w-3 mr-1" />XLS</Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-rose-400 hover:text-rose-300" disabled={trades.length === 0} onClick={() => exportTradeJournalPdf(trades, liveLtpByAlert)} title="Print filtered journal or save it as PDF"><FileText className="h-3 w-3 mr-1" />PDF</Button>
           <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
             <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-rose-400 hover:text-rose-300 hover:bg-rose-950/30" disabled={trades.length === 0} onClick={() => setConfirmClear(true)}><Trash2 className="h-3 w-3 mr-1" />Clear All</Button>
             <DialogContent className="bg-[#0f1620] border-[#1c2530] text-slate-200"><DialogHeader><DialogTitle className="text-rose-300">Clear all {stats.total} trade records?</DialogTitle><DialogDescription className="text-slate-400">This permanently deletes every trade in the journal including closed trades. This action cannot be undone.</DialogDescription></DialogHeader><DialogFooter><DialogClose asChild><Button variant="outline" size="sm" className="bg-[#0a0e14] border-[#1c2530] text-slate-300">Cancel</Button></DialogClose><Button size="sm" onClick={() => clearMutation.mutate()} disabled={clearMutation.isPending} className="bg-rose-700 hover:bg-rose-600 text-white">{clearMutation.isPending ? "Deleting…" : "Delete All"}</Button></DialogFooter></DialogContent>
@@ -244,22 +306,26 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
                 <th className="text-left font-normal py-2 pr-2">Index</th>
                 <th className="text-right font-normal py-2 pr-2">Strike</th>
                 <th className="text-left font-normal py-2 pr-2">Type</th>
+                <th className="text-right font-normal py-2 pr-2">Qty</th>
                 <th className="text-right font-normal py-2 pr-1">Entry</th>
                 <th className="text-right font-normal py-2 pr-2">LTP</th>
                 <th className="text-right font-normal py-2 pr-2">SL</th>
                 <th className="text-right font-normal py-2 pr-6">Exit price</th>
+                <th className="text-right font-normal py-2 pr-2">Gross Profit</th>
+                <th className="text-right font-normal py-2 pr-2">Trading Charges</th>
+                <th className="text-right font-normal py-2 pr-2">Net Profit/Loss</th>
                 <th className="text-left font-normal py-2 pr-2">Result</th>
                 <th className="text-right font-normal py-2">Action</th>
               </tr>
             </thead>
             <tbody>
-              {trades.map((t, i) => <TradeRow key={t.id} sno={i + 1} trade={t} onExitClick={() => { setExitTarget(t); setExitPriceInput(String(t.entryPremium)); }} liveLtp={liveLtpByAlert[t.alertId] ?? (t.alertId === activeTradeLtp?.alertId ? activeTradeLtp?.ltp : watchLtpBySymbol?.[t.symbol])} />)}
+              {trades.map((t, i) => <TradeRow key={t.id} sno={i + 1} trade={t} onExitClick={() => { setExitTarget(t); setExitPriceInput(String(t.entryPremium)); setTradingChargesInput(String(t.tradingCharges ?? 0)); }} liveLtp={liveLtpByAlert[t.alertId] ?? (t.alertId === activeTradeLtp?.alertId ? activeTradeLtp?.ltp : watchLtpBySymbol?.[t.symbol])} />)}
             </tbody>
           </table>
         </ScrollArea>
       )}
 
-      <Dialog open={!!exitTarget} onOpenChange={(open) => { if (!open) { setExitTarget(null); setExitPriceInput(""); } }}>
+      <Dialog open={!!exitTarget} onOpenChange={(open) => { if (!open) { setExitTarget(null); setExitPriceInput(""); setTradingChargesInput("0"); } }}>
         <DialogContent className="bg-[#0f1620] border-[#1c2530] text-slate-200">
           <DialogHeader>
             <DialogTitle>Exit trade</DialogTitle>
@@ -270,9 +336,11 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
           <div className="space-y-1.5">
             <Label className="text-xs">Exit price</Label>
             <Input type="number" step="0.01" value={exitPriceInput} onChange={e => setExitPriceInput(e.target.value)} className="bg-[#0a0e14] border-[#1c2530] font-mono" autoFocus />
+            <Label className="text-xs">Trading charges (brokerage, GST, STT, other fees)</Label>
+            <Input type="number" min="0" step="0.01" value={tradingChargesInput} onChange={e => setTradingChargesInput(e.target.value)} className="bg-[#0a0e14] border-[#1c2530] font-mono" />
             {exitTarget && exitPriceInput !== "" && !isNaN(Number(exitPriceInput)) && (
               <p className={cn("text-[11px] font-mono pt-1", Number(exitPriceInput) >= exitTarget.entryPremium ? "text-emerald-400" : "text-rose-400")}>
-                P&L: {Number(exitPriceInput) >= exitTarget.entryPremium ? "+" : "−"}₹{Math.abs((Number(exitPriceInput) - exitTarget.entryPremium) * lotSizeFor(exitTarget.symbol)).toFixed(0)} ({(((Number(exitPriceInput) - exitTarget.entryPremium) / exitTarget.entryPremium) * 100).toFixed(1)}%)
+                Gross: {Number(exitPriceInput) >= exitTarget.entryPremium ? "+" : "−"}₹{Math.abs((Number(exitPriceInput) - exitTarget.entryPremium) * lotSizeFor(exitTarget.symbol)).toFixed(0)} · Net: ₹{(((Number(exitPriceInput) - exitTarget.entryPremium) * lotSizeFor(exitTarget.symbol)) - Math.max(0, Number(tradingChargesInput) || 0)).toFixed(0)}
               </p>
             )}
           </div>
@@ -300,7 +368,10 @@ function StatBox({ label, value, sub, color, border, bg }: { label: string; valu
 function TradeRow({ trade, sno, onExitClick, liveLtp }: { trade: TradeEntry; sno: number; onExitClick: () => void; liveLtp?: number }) {
   const isBull = trade.action === "BUY CE"; const isOpen = trade.status === "OPEN";
   const result = RESULT_STYLE[trade.status] ?? RESULT_STYLE.OPEN;
-  const pnl = trade.totalPnl ?? 0; const pnlPositive = pnl >= 0;
+  const grossProfit = trade.totalPnl ?? 0;
+  const tradingCharges = trade.tradingCharges ?? 0;
+  const netProfitLoss = trade.netPnl ?? (grossProfit - tradingCharges);
+  const pnlPositive = netProfitLoss >= 0;
   const opened = new Date(trade.openedAt);
   const dateStr = opened.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
   const timeStr = opened.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -322,15 +393,19 @@ function TradeRow({ trade, sno, onExitClick, liveLtp }: { trade: TradeEntry; sno
           {isBull ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}{trade.optionType}
         </span>
       </td>
+      <td className="py-2 pr-2 text-right text-slate-300">{lotSizeFor(trade.symbol)}</td>
       <td className="py-2 pr-1 text-right text-cyan-300">{trade.entryPremium.toFixed(2)}</td>
       <td className={cn("py-2 pr-2 text-right", ltpValue == null ? "text-slate-600" : ltpUp ? "text-emerald-400" : "text-rose-400")}>
         {ltpValue != null ? ltpValue.toFixed(2) : isOpen ? "…" : "—"}
       </td>
       <td className="py-2 pr-2 text-right text-rose-300">{trade.stopLoss.toFixed(2)}</td>
       <td className="py-2 pr-6 text-right text-slate-300">{trade.exitPremium !== null ? trade.exitPremium.toFixed(2) : "—"}</td>
+      <td className="py-2 pr-2 text-right text-slate-300">{!isOpen && trade.totalPnl !== null ? `₹${grossProfit.toFixed(2)}` : "—"}</td>
+      <td className="py-2 pr-2 text-right text-amber-300">{!isOpen ? `₹${tradingCharges.toFixed(2)}` : "—"}</td>
+      <td className={cn("py-2 pr-2 text-right font-semibold", pnlPositive ? "text-emerald-400" : "text-rose-400")}>{!isOpen && trade.totalPnl !== null ? `${pnlPositive ? "+" : "−"}₹${Math.abs(netProfitLoss).toFixed(2)}` : "—"}</td>
       <td className="py-2 pr-2">
         <div className={cn("font-semibold", result.text)}>{result.label}</div>
-        {!isOpen && trade.totalPnl !== null && <div className={cn("text-[11px]", pnlPositive ? "text-emerald-400" : "text-rose-400")}>{pnlPositive ? "+" : "−"}₹{Math.abs(pnl).toFixed(0)}{trade.pnlPercent !== null && ` (${pnlPositive ? "+" : ""}${trade.pnlPercent.toFixed(1)}%)`}</div>}
+        {!isOpen && trade.totalPnl !== null && <div className="text-[11px] text-slate-400">Net {pnlPositive ? "+" : "−"}₹{Math.abs(netProfitLoss).toFixed(0)}{trade.pnlPercent !== null && ` (${pnlPositive ? "+" : ""}${trade.pnlPercent.toFixed(1)}%)`}</div>}
       </td>
       <td className="py-2 text-right">
         {isOpen && <Button size="sm" variant="outline" className="h-6 px-2 text-[11px] bg-[#0a0e14] border-rose-800/40 text-rose-300 hover:bg-rose-950/40" onClick={onExitClick}><LogOut className="h-2.5 w-2.5 mr-1" />Exit</Button>}

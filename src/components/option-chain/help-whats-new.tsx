@@ -8,7 +8,16 @@ import {
 
 const updates = [
   {
-    version: "v1.0.15",
+    version: "v1.0.17",
+    date: "04 Nov 2026",
+    title: "Trade Journal profit breakdown",
+    items: [
+      "Add Quantity, Gross Profit, Trading Charges and Net Profit/Loss columns, with charges deducted from gross profit using Net Profit = Gross Profit - Trading Charges.",
+      "Export the filtered Trade Journal to an Excel-compatible XLS file or a print-ready PDF view.",
+    ],
+  },
+  {
+    version: "v1.0.16",
     date: "03 Nov 2026",
     title: "Bundled Pandas market data worker",
     items: [
