@@ -8,6 +8,14 @@ import {
 
 const updates = [
   {
+    version: "v1.0.20",
+    date: "11 Nov 2026",
+    title: "Windows updater release repair",
+    items: [
+      "Publish the Windows installer and latest.yml from a fresh release tag so packaged users can receive app updates.",
+    ],
+  },
+  {
     version: "v1.0.19",
     date: "04 Nov 2026",
     title: "Fyers API usage protection and Trade Journal",

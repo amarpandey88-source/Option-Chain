@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.20] - 2026-11-11
+- Publish the Windows installer and `latest.yml` from a fresh release tag so packaged users can receive app updates.
+
 ## [1.0.19] - 2026-11-04
 - Included the Fyers WebSocket/API usage reduction changes in the published application build.
 - Added the missing Windows release assets needed by the Electron auto-updater workflow.
