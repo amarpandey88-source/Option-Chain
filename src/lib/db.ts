@@ -111,6 +111,7 @@ export function ensureSchema(): Promise<void> {
         "pnlPerLot" REAL,
         "totalPnl" REAL,
         "tradingCharges" REAL NOT NULL DEFAULT 0,
+        "chargesEstimated" INTEGER NOT NULL DEFAULT 1,
         "netPnl" REAL,
         "pnlPercent" REAL,
         "durationSec" INTEGER,
@@ -156,6 +157,11 @@ export function ensureSchema(): Promise<void> {
       }
       try {
         await db.$executeRawUnsafe(`ALTER TABLE "TradeJournal" ADD COLUMN "netPnl" REAL`)
+      } catch {
+        // Column already exists — expected on subsequent runs.
+      }
+      try {
+        await db.$executeRawUnsafe(`ALTER TABLE "TradeJournal" ADD COLUMN "chargesEstimated" INTEGER NOT NULL DEFAULT 1`)
       } catch {
         // Column already exists — expected on subsequent runs.
       }

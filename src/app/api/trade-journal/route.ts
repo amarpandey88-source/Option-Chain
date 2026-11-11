@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withCalculatedFyersCharges } from "@/lib/fyers-options-charges";
+
+function matchesResult(trade: ReturnType<typeof withCalculatedFyersCharges>, result: string | null) {
+  if (result === "win") return trade.status !== "OPEN" && (trade.netPnl ?? 0) > 0;
+  if (result === "loss") return trade.status !== "OPEN" && (trade.netPnl ?? 0) <= 0;
+  return true;
+}
 
 // db/ensureSchema are imported dynamically INSIDE each try block below, not
 // statically at the top of the file. If module resolution or client
@@ -42,10 +49,8 @@ export async function GET(req: NextRequest) {
       where.status = "OPEN";
     } else if (result === "win") {
       where.status = { not: "OPEN" };
-      where.totalPnl = { gt: 0 };
     } else if (result === "loss") {
       where.status = { not: "OPEN" };
-      where.totalPnl = { lte: 0 };
     }
 
     if (period === "custom") {
@@ -87,20 +92,24 @@ export async function GET(req: NextRequest) {
       where.openedAt = { gte: new Date(from.getTime() - istOffsetMs) };
     }
 
-    const trades = await db.tradeJournal.findMany({ where, orderBy: { openedAt: "desc" }, take: Math.min(limit, 200) });
+    const trades = (await db.tradeJournal.findMany({ where, orderBy: { openedAt: "desc" }, take: Math.min(limit, 200) }))
+      .map(withCalculatedFyersCharges)
+      .filter(trade => matchesResult(trade, result));
 
     // Stats reflect the SAME filters as the trade list above (minus the
     // take/limit cap) — so the win-rate/P&L summary always matches what's
     // actually shown in the filtered table, not some separate unfiltered
     // view of everything.
-    const allTrades = await db.tradeJournal.findMany({ where, orderBy: { openedAt: "desc" }, take: 2000 });
+    const allTrades = (await db.tradeJournal.findMany({ where, orderBy: { openedAt: "desc" }, take: 2000 }))
+      .map(withCalculatedFyersCharges)
+      .filter(trade => matchesResult(trade, result));
     const closed = allTrades.filter(t => t.status !== "OPEN" && t.totalPnl !== null);
-    const wins = closed.filter(t => (t.totalPnl ?? 0) > 0);
-    const losses = closed.filter(t => (t.totalPnl ?? 0) <= 0);
-    const totalPnl = closed.reduce((s, t) => s + (t.totalPnl ?? 0), 0);
+    const wins = closed.filter(t => (t.netPnl ?? 0) > 0);
+    const losses = closed.filter(t => (t.netPnl ?? 0) <= 0);
+    const totalPnl = closed.reduce((s, t) => s + (t.netPnl ?? 0), 0);
     const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
-    const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + (t.totalPnl ?? 0), 0) / wins.length : 0;
-    const avgLoss = losses.length > 0 ? losses.reduce((s, t) => s + (t.totalPnl ?? 0), 0) / losses.length : 0;
+    const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + (t.netPnl ?? 0), 0) / wins.length : 0;
+    const avgLoss = losses.length > 0 ? losses.reduce((s, t) => s + (t.netPnl ?? 0), 0) / losses.length : 0;
     return NextResponse.json({ trades, stats: { total: allTrades.length, open: allTrades.filter(t => t.status === "OPEN").length, closed: closed.length, wins: wins.length, losses: losses.length, winRate: Number(winRate.toFixed(1)), totalPnl: Number(totalPnl.toFixed(2)), avgWin: Number(avgWin.toFixed(2)), avgLoss: Number(avgLoss.toFixed(2)) } });
   } catch (err: any) {
     console.error("[trade-journal GET] error:", err);

@@ -21,6 +21,11 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.21] - 2026-11-11
+- Show the saved exit premium as LTP after a trade closes.
+- Estimate Fyers charges for historical and automatically closed trades, and use net P&L for journal totals and win/loss summaries.
+- Let users enter actual charges when manually closing a trade; keep the new estimate flag compatible with existing databases.
+
 ## [1.0.20] - 2026-11-11
 - Publish the Windows installer and `latest.yml` from a fresh release tag so packaged users can receive app updates.
 

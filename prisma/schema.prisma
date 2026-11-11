@@ -68,6 +68,7 @@ model TradeJournal {
   pnlPerLot       Float?
   totalPnl        Float?
   tradingCharges  Float   @default(0)
+  chargesEstimated Boolean @default(true)
   netPnl          Float?
   pnlPercent      Float?
   durationSec     Int?

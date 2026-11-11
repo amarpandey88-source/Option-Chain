@@ -8,6 +8,16 @@ import {
 
 const updates = [
   {
+    version: "v1.0.21",
+    date: "11 Nov 2026",
+    title: "Trade Journal exit prices and charges",
+    items: [
+      "Show the saved exit premium as LTP after a trade closes.",
+      "Estimate Fyers charges for historical and automatically closed trades, and use net P&L for journal totals and win/loss summaries.",
+      "Let users enter actual charges when manually closing a trade; keep the new estimate flag compatible with existing databases.",
+    ],
+  },
+  {
     version: "v1.0.20",
     date: "11 Nov 2026",
     title: "Windows updater release repair",

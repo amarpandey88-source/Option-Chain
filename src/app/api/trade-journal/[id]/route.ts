@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { estimateFyersOptionsCharges } from "@/lib/fyers-options-charges";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -10,13 +11,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const u: any = {};
     if (body.status) u.status = body.status;
     if (body.exitSpot !== undefined) u.exitSpot = parseFloat(body.exitSpot);
-    if (body.exitPremium !== undefined) u.exitPremium = parseFloat(body.exitPremium);
+    const exitPremium = body.exitPremium !== undefined ? parseFloat(body.exitPremium) : existing.exitPremium;
+    if (body.exitPremium !== undefined) u.exitPremium = exitPremium;
     if (body.pnlPerLot !== undefined) u.pnlPerLot = parseFloat(body.pnlPerLot);
-    if (body.totalPnl !== undefined) u.totalPnl = parseFloat(body.totalPnl);
-    const tradingCharges = body.tradingCharges !== undefined ? Math.max(0, parseFloat(body.tradingCharges)) : (existing.tradingCharges ?? 0);
-    if (body.tradingCharges !== undefined) u.tradingCharges = tradingCharges;
-    if (body.totalPnl !== undefined || body.tradingCharges !== undefined) {
-      const grossProfit = body.totalPnl !== undefined ? parseFloat(body.totalPnl) : (existing.totalPnl ?? 0);
+    const totalPnl = body.totalPnl !== undefined ? parseFloat(body.totalPnl) : existing.totalPnl;
+    if (body.totalPnl !== undefined) u.totalPnl = totalPnl;
+    const isFyersTrade = existing.dataSource.toLowerCase().includes("fyers");
+    const estimatedCharges = isFyersTrade && exitPremium !== null && exitPremium > 0
+      ? estimateFyersOptionsCharges(
+        existing.entryPremium,
+        exitPremium,
+        existing.symbol === "BANKNIFTY" ? 30 : existing.symbol === "SENSEX" ? 20 : 65,
+      )
+      : 0;
+    const shouldEstimate = body.tradingCharges === undefined
+      ? existing.chargesEstimated && existing.tradingCharges === 0 && estimatedCharges > 0
+      : body.chargesEstimated === true;
+    const tradingCharges = body.tradingCharges !== undefined
+      ? Math.max(0, parseFloat(body.tradingCharges))
+      : shouldEstimate ? estimatedCharges : (existing.tradingCharges ?? 0);
+    if (body.tradingCharges !== undefined || shouldEstimate) {
+      u.tradingCharges = tradingCharges;
+      u.chargesEstimated = shouldEstimate;
+    }
+    if (totalPnl !== null && (body.totalPnl !== undefined || body.tradingCharges !== undefined || shouldEstimate)) {
+      const grossProfit = totalPnl;
       u.netPnl = grossProfit - tradingCharges;
     }
     if (body.pnlPercent !== undefined) u.pnlPercent = parseFloat(body.pnlPercent);

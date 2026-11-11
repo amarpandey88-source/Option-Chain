@@ -12,6 +12,7 @@ import { TrendingUp, TrendingDown, Trash2, History, RefreshCw, LogOut, Filter, F
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { getDefaultExpiry } from "@/lib/expiry-utils";
+import { estimateFyersOptionsCharges } from "@/lib/fyers-options-charges";
 import type { OptionChainRow, Symbol } from "@/lib/types";
 
 interface TradeEntry {
@@ -19,6 +20,7 @@ interface TradeEntry {
   entryPremium: number; stopLoss: number; target1: number; target2: number; target3: number;
   entrySpot: number; confidence: number; sentiment: string; rationale: string; status: string;
   exitSpot: number | null; exitPremium: number | null; pnlPerLot: number | null; totalPnl: number | null; tradingCharges: number; netPnl: number | null;
+  chargesEstimated?: boolean;
   pnlPercent: number | null; durationSec: number | null; exitReason: string | null;
   openedAt: string; closedAt: string | null; dataSource: string; expiryDate: string | null;
 }
@@ -29,6 +31,12 @@ interface TradeStats { total: number; open: number; closed: number; wins: number
 // so P&L computed here from a manual exit matches what the app would have
 // computed itself.
 function lotSizeFor(symbol: string) { return symbol === "BANKNIFTY" ? 30 : symbol === "SENSEX" ? 20 : 65; }
+
+function estimatedChargesForTrade(trade: TradeEntry, exitPremium: number) {
+  return trade.dataSource.toLowerCase().includes("fyers")
+    ? estimateFyersOptionsCharges(trade.entryPremium, exitPremium, lotSizeFor(trade.symbol))
+    : 0;
+}
 
 const RESULT_STYLE: Record<string, { label: string; text: string }> = {
   OPEN: { label: "Open", text: "text-cyan-300" },
@@ -49,7 +57,9 @@ function exportRows(trades: TradeEntry[], liveLtpByAlert: Record<string, number>
     const tradingCharges = trade.tradingCharges ?? 0;
     const netProfitLoss = trade.netPnl ?? (grossProfit - tradingCharges);
     const opened = new Date(trade.openedAt);
-    const ltpValue = isTradeExpired(trade) ? 0 : liveLtpByAlert[trade.alertId] ?? trade.exitPremium ?? null;
+    const ltpValue = isOpen
+      ? isTradeExpired(trade) ? 0 : liveLtpByAlert[trade.alertId] ?? trade.exitPremium ?? null
+      : trade.exitPremium ?? liveLtpByAlert[trade.alertId] ?? null;
     return [
       index + 1,
       opened.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
@@ -132,6 +142,7 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
   const [exitTarget, setExitTarget] = useState<TradeEntry | null>(null);
   const [exitPriceInput, setExitPriceInput] = useState("");
   const [tradingChargesInput, setTradingChargesInput] = useState("0");
+  const [chargesEstimatedInput, setChargesEstimatedInput] = useState(true);
   const [period, setPeriod] = useState("all");
   const [customFromDate, setCustomFromDate] = useState("");
   const [customToDate, setCustomToDate] = useState("");
@@ -185,7 +196,7 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
       const durationSec = Math.round((Date.now() - new Date(trade.openedAt).getTime()) / 1000);
       const res = await fetch(`/api/trade-journal/${trade.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "MANUAL_CLOSE", exitReason: "Closed manually from Trade Journal", exitPremium, exitSpot: currentSpot ?? trade.entrySpot, pnlPerLot, totalPnl, tradingCharges, pnlPercent, durationSec }),
+        body: JSON.stringify({ status: "MANUAL_CLOSE", exitReason: "Closed manually from Trade Journal", exitPremium, exitSpot: currentSpot ?? trade.entrySpot, pnlPerLot, totalPnl, tradingCharges, chargesEstimated: chargesEstimatedInput, pnlPercent, durationSec }),
       });
       if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Failed"); }
       return { trade, ...(await res.json()) };
@@ -200,7 +211,7 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
       // already closed here, which is exactly the kind of disconnect that
       // caused confusion earlier in this app.
       onExternalClose?.(trade.alertId);
-      setExitTarget(null); setExitPriceInput(""); setTradingChargesInput("0");
+      setExitTarget(null); setExitPriceInput(""); setTradingChargesInput("0"); setChargesEstimatedInput(true);
     },
   });
   const stats = data?.stats ?? { total: 0, open: 0, closed: 0, wins: 0, losses: 0, winRate: 0, totalPnl: 0, avgWin: 0, avgLoss: 0 };
@@ -319,13 +330,13 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
               </tr>
             </thead>
             <tbody>
-              {trades.map((t, i) => <TradeRow key={t.id} sno={i + 1} trade={t} onExitClick={() => { setExitTarget(t); setExitPriceInput(String(t.entryPremium)); setTradingChargesInput(String(t.tradingCharges ?? 0)); }} liveLtp={liveLtpByAlert[t.alertId] ?? (t.alertId === activeTradeLtp?.alertId ? activeTradeLtp?.ltp : watchLtpBySymbol?.[t.symbol])} />)}
+              {trades.map((t, i) => <TradeRow key={t.id} sno={i + 1} trade={t} onExitClick={() => { setExitTarget(t); setExitPriceInput(String(t.entryPremium)); setTradingChargesInput(String(estimatedChargesForTrade(t, t.entryPremium))); setChargesEstimatedInput(true); }} liveLtp={liveLtpByAlert[t.alertId] ?? (t.alertId === activeTradeLtp?.alertId ? activeTradeLtp?.ltp : watchLtpBySymbol?.[t.symbol])} />)}
             </tbody>
           </table>
         </ScrollArea>
       )}
 
-      <Dialog open={!!exitTarget} onOpenChange={(open) => { if (!open) { setExitTarget(null); setExitPriceInput(""); setTradingChargesInput("0"); } }}>
+      <Dialog open={!!exitTarget} onOpenChange={(open) => { if (!open) { setExitTarget(null); setExitPriceInput(""); setTradingChargesInput("0"); setChargesEstimatedInput(true); } }}>
         <DialogContent className="bg-[#0f1620] border-[#1c2530] text-slate-200">
           <DialogHeader>
             <DialogTitle>Exit trade</DialogTitle>
@@ -335,9 +346,18 @@ export function TradeJournalPanel({ currentSpot, onExternalClose, onWinningClose
           </DialogHeader>
           <div className="space-y-1.5">
             <Label className="text-xs">Exit price</Label>
-            <Input type="number" step="0.01" value={exitPriceInput} onChange={e => setExitPriceInput(e.target.value)} className="bg-[#0a0e14] border-[#1c2530] font-mono" autoFocus />
-            <Label className="text-xs">Trading charges (brokerage, GST, STT, other fees)</Label>
-            <Input type="number" min="0" step="0.01" value={tradingChargesInput} onChange={e => setTradingChargesInput(e.target.value)} className="bg-[#0a0e14] border-[#1c2530] font-mono" />
+            <Input type="number" step="0.01" value={exitPriceInput} onChange={e => {
+              const value = e.target.value;
+              setExitPriceInput(value);
+              if (exitTarget && chargesEstimatedInput && Number(value) > 0) {
+                setTradingChargesInput(String(estimatedChargesForTrade(exitTarget, Number(value))));
+              }
+            }} className="bg-[#0a0e14] border-[#1c2530] font-mono" autoFocus />
+            <Label className="text-xs">Estimated Fyers charges (edit to enter actual charges)</Label>
+            <Input type="number" min="0" step="0.01" value={tradingChargesInput} onChange={e => {
+              setTradingChargesInput(e.target.value);
+              setChargesEstimatedInput(false);
+            }} className="bg-[#0a0e14] border-[#1c2530] font-mono" />
             {exitTarget && exitPriceInput !== "" && !isNaN(Number(exitPriceInput)) && (
               <p className={cn("text-[11px] font-mono pt-1", Number(exitPriceInput) >= exitTarget.entryPremium ? "text-emerald-400" : "text-rose-400")}>
                 Gross: {Number(exitPriceInput) >= exitTarget.entryPremium ? "+" : "−"}₹{Math.abs((Number(exitPriceInput) - exitTarget.entryPremium) * lotSizeFor(exitTarget.symbol)).toFixed(0)} · Net: ₹{(((Number(exitPriceInput) - exitTarget.entryPremium) * lotSizeFor(exitTarget.symbol)) - Math.max(0, Number(tradingChargesInput) || 0)).toFixed(0)}
@@ -372,6 +392,9 @@ function TradeRow({ trade, sno, onExitClick, liveLtp }: { trade: TradeEntry; sno
   const tradingCharges = trade.tradingCharges ?? 0;
   const netProfitLoss = trade.netPnl ?? (grossProfit - tradingCharges);
   const pnlPositive = netProfitLoss >= 0;
+  const netPnlPercent = trade.entryPremium > 0
+    ? (netProfitLoss / (trade.entryPremium * lotSizeFor(trade.symbol))) * 100
+    : null;
   const opened = new Date(trade.openedAt);
   const dateStr = opened.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
   const timeStr = opened.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -379,7 +402,9 @@ function TradeRow({ trade, sno, onExitClick, liveLtp }: { trade: TradeEntry; sno
   // or the background watcher — see page.tsx), the recorded exit price
   // once closed (that's the real, exact price it actually left at, no
   // reason to keep guessing after the fact).
-  const ltpValue = isTradeExpired(trade) ? 0 : liveLtp ?? trade.exitPremium ?? undefined;
+  const ltpValue = isOpen
+    ? isTradeExpired(trade) ? 0 : liveLtp ?? trade.exitPremium ?? undefined
+    : trade.exitPremium ?? liveLtp;
   const ltpUp = ltpValue != null && ltpValue >= trade.entryPremium;
   return (
     <tr className={cn("border-b border-[#1c2530]/60 hover:bg-[#0a0e14]/60", isOpen && "bg-cyan-500/[0.03]")}>
@@ -401,11 +426,13 @@ function TradeRow({ trade, sno, onExitClick, liveLtp }: { trade: TradeEntry; sno
       <td className="py-2 pr-2 text-right text-rose-300">{trade.stopLoss.toFixed(2)}</td>
       <td className="py-2 pr-6 text-right text-slate-300">{trade.exitPremium !== null ? trade.exitPremium.toFixed(2) : "—"}</td>
       <td className="py-2 pr-2 text-right text-slate-300">{!isOpen && trade.totalPnl !== null ? `₹${grossProfit.toFixed(2)}` : "—"}</td>
-      <td className="py-2 pr-2 text-right text-amber-300">{!isOpen ? `₹${tradingCharges.toFixed(2)}` : "—"}</td>
+      <td className="py-2 pr-2 text-right text-amber-300" title={trade.chargesEstimated ? "Fyers Standard-plan estimate; reconcile with your contract note." : undefined}>
+        {!isOpen ? <>{`₹${tradingCharges.toFixed(2)}`}{trade.chargesEstimated && <div className="text-[9px] text-slate-500">est.</div>}</> : "—"}
+      </td>
       <td className={cn("py-2 pr-2 text-right font-semibold", pnlPositive ? "text-emerald-400" : "text-rose-400")}>{!isOpen && trade.totalPnl !== null ? `${pnlPositive ? "+" : "−"}₹${Math.abs(netProfitLoss).toFixed(2)}` : "—"}</td>
       <td className="py-2 pr-2">
         <div className={cn("font-semibold", result.text)}>{result.label}</div>
-        {!isOpen && trade.totalPnl !== null && <div className="text-[11px] text-slate-400">Net {pnlPositive ? "+" : "−"}₹{Math.abs(netProfitLoss).toFixed(0)}{trade.pnlPercent !== null && ` (${pnlPositive ? "+" : ""}${trade.pnlPercent.toFixed(1)}%)`}</div>}
+        {!isOpen && trade.totalPnl !== null && <div className="text-[11px] text-slate-400">Net {pnlPositive ? "+" : "−"}₹{Math.abs(netProfitLoss).toFixed(0)}{netPnlPercent !== null && ` (${netPnlPercent >= 0 ? "+" : ""}${netPnlPercent.toFixed(1)}%)`}</div>}
       </td>
       <td className="py-2 text-right">
         {isOpen && <Button size="sm" variant="outline" className="h-6 px-2 text-[11px] bg-[#0a0e14] border-rose-800/40 text-rose-300 hover:bg-rose-950/40" onClick={onExitClick}><LogOut className="h-2.5 w-2.5 mr-1" />Exit</Button>}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MIN_SAMPLE_SIZE } from "@/lib/journal-stats-constants";
 import { computeCalibration } from "@/lib/confidence-calibration";
+import { withCalculatedFyersCharges } from "@/lib/fyers-options-charges";
 
 // db/ensureSchema imported dynamically inside the try block for the same
 // reason as the other trade-journal routes — see route.ts's comment on
@@ -11,9 +12,9 @@ export const dynamic = "force-dynamic";
 
 interface Bucket { label: string; total: number; wins: number; winRate: number; totalPnl: number }
 
-function toBucket(label: string, trades: { totalPnl: number | null }[]): Bucket {
-  const wins = trades.filter(t => (t.totalPnl ?? 0) > 0).length;
-  const totalPnl = trades.reduce((s, t) => s + (t.totalPnl ?? 0), 0);
+function toBucket(label: string, trades: { netPnl: number | null }[]): Bucket {
+  const wins = trades.filter(t => (t.netPnl ?? 0) > 0).length;
+  const totalPnl = trades.reduce((s, t) => s + (t.netPnl ?? 0), 0);
   return { label, total: trades.length, wins, winRate: trades.length ? Number(((wins / trades.length) * 100).toFixed(1)) : 0, totalPnl: Number(totalPnl.toFixed(2)) };
 }
 
@@ -29,17 +30,18 @@ export async function GET(req: NextRequest) {
     // Cap at the most recent 1000 closed trades — plenty for meaningful
     // stats, and keeps this fast without needing a separate aggregate
     // query for every breakdown.
-    const closed = await db.tradeJournal.findMany({ where, orderBy: { openedAt: "desc" }, take: 1000 });
+    const closed = (await db.tradeJournal.findMany({ where, orderBy: { openedAt: "desc" }, take: 1000 }))
+      .map(withCalculatedFyersCharges);
 
     if (closed.length === 0) {
       return NextResponse.json({ hasData: false, minSampleSize: MIN_SAMPLE_SIZE });
     }
 
-    const wins = closed.filter(t => (t.totalPnl ?? 0) > 0);
-    const totalPnl = closed.reduce((s, t) => s + (t.totalPnl ?? 0), 0);
-    const avgWin = wins.length ? wins.reduce((s, t) => s + (t.totalPnl ?? 0), 0) / wins.length : 0;
-    const losses = closed.filter(t => (t.totalPnl ?? 0) <= 0);
-    const avgLoss = losses.length ? losses.reduce((s, t) => s + (t.totalPnl ?? 0), 0) / losses.length : 0;
+    const wins = closed.filter(t => (t.netPnl ?? 0) > 0);
+    const totalPnl = closed.reduce((s, t) => s + (t.netPnl ?? 0), 0);
+    const avgWin = wins.length ? wins.reduce((s, t) => s + (t.netPnl ?? 0), 0) / wins.length : 0;
+    const losses = closed.filter(t => (t.netPnl ?? 0) <= 0);
+    const avgLoss = losses.length ? losses.reduce((s, t) => s + (t.netPnl ?? 0), 0) / losses.length : 0;
     const avgDurationSec = closed.filter(t => t.durationSec != null).length
       ? closed.reduce((s, t) => s + (t.durationSec ?? 0), 0) / closed.filter(t => t.durationSec != null).length
       : null;
@@ -67,7 +69,7 @@ export async function GET(req: NextRequest) {
     // the first/last hour of the session" type patterns. Only hours with
     // at least MIN_SAMPLE_SIZE trades are surfaced as best/worst, to avoid
     // a single lucky/unlucky trade looking like a strong pattern.
-    const hourBuckets = new Map<number, { totalPnl: number | null }[]>();
+    const hourBuckets = new Map<number, { netPnl: number | null }[]>();
     for (const t of closed) {
       const hourIst = new Date(new Date(t.openedAt).getTime() + 5.5 * 60 * 60 * 1000).getUTCHours();
       if (!hourBuckets.has(hourIst)) hourBuckets.set(hourIst, []);
