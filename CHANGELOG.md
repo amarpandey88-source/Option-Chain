@@ -21,6 +21,10 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.23] - 2026-11-20
+- Added a signal log: every broker-mode signal (including ones the smart engine blocked) is now recorded with its factors, and its 15/30/60-minute outcome is filled in automatically, so signal accuracy can be measured.
+- Added /api/signal-log/stats for hit-rate breakdowns by smart verdict, quality, regime, hour, confidence band and blocker.
+
 ## [1.0.21] - 2026-11-11
 - Show the saved exit premium as LTP after a trade closes.
 - Estimate Fyers charges for historical and automatically closed trades, and use net P&L for journal totals and win/loss summaries.
