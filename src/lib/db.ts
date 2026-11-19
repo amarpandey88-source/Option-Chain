@@ -134,6 +134,45 @@ export function ensureSchema(): Promise<void> {
         PRIMARY KEY ("symbol", "dataSource", "metric", "capturedAt")
       )`)
       await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "MarketHistory_lookup_idx" ON "MarketHistory"("symbol", "dataSource", "metric", "capturedAt")`)
+      // Signal log: every snapshot's signal state + what spot did afterwards
+      // (see src/lib/signal-log.ts). Outcome columns are filled in later.
+      await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SignalLog" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "symbol" TEXT NOT NULL,
+        "capturedAt" TEXT NOT NULL,
+        "istDay" TEXT NOT NULL,
+        "istMinute" INTEGER NOT NULL,
+        "origin" TEXT NOT NULL,
+        "dataSource" TEXT NOT NULL,
+        "spot" REAL NOT NULL,
+        "atmStrike" REAL,
+        "atmIv" REAL,
+        "vix" REAL,
+        "pcr" REAL,
+        "gex" REAL,
+        "regime" TEXT NOT NULL,
+        "baseSignal" TEXT NOT NULL,
+        "baseConfidence" INTEGER NOT NULL,
+        "candidateDir" INTEGER NOT NULL,
+        "smartAction" TEXT NOT NULL,
+        "smartScore" REAL NOT NULL,
+        "smartConfidence" INTEGER NOT NULL,
+        "quality" TEXT NOT NULL,
+        "confirmed" INTEGER NOT NULL,
+        "edge" REAL NOT NULL,
+        "stabilityCount" INTEGER NOT NULL,
+        "isLocked" INTEGER NOT NULL,
+        "blockers" TEXT NOT NULL,
+        "factors" TEXT NOT NULL,
+        "spot15" REAL,
+        "spot30" REAL,
+        "spot60" REAL,
+        "maxUp60" REAL,
+        "maxDown60" REAL,
+        "resolvedAt" TEXT
+      )`)
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SignalLog_lookup_idx" ON "SignalLog"("symbol", "istDay", "capturedAt")`)
+      await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SignalLog_pending_idx" ON "SignalLog"("resolvedAt", "capturedAt")`)
       // Additive migration for databases created before "regime" existed —
       // CREATE TABLE IF NOT EXISTS above only helps brand-new databases; an
       // already-existing TradeJournal table needs the column added

@@ -116,6 +116,9 @@ export async function GET(req: NextRequest) {
     const raw = await generateSnapshotBroker(sym, expiry);
     const s = await applyAdaptiveConfidence(raw);
     const snapshot = await withPandasData(await withPersistedHistory(s, sym, "broker"));
+    // Fire-and-forget: record this snapshot's signal state for accuracy
+    // measurement (see signal-log.ts). Never awaited, never throws.
+    void import("@/lib/signal-log").then(m => m.logSignal(s, `broker-${getConfiguredBroker()}`, "dashboard"));
     return NextResponse.json(
       { ...snapshot, dataSource: `broker-${getConfiguredBroker()}`, alertsAllowed: true },
       { headers: noStoreHeaders }

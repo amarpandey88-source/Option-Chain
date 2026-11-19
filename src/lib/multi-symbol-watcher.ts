@@ -312,6 +312,11 @@ async function runTick() {
       const snapshot = await generateSnapshotBroker(symbol);
       const dataSourceLabel = `broker-${getConfiguredBroker()}`;
 
+      // Record the signal state for accuracy measurement (signal-log.ts),
+      // whether or not it ends up firing a trade below.
+      const { logSignal } = await import("./signal-log");
+      void logSignal(snapshot, dataSourceLabel, "watcher");
+
       status[symbol] = {
         ...status[symbol], lastCheckedAt: Date.now(),
         lastSignal: snapshot.overallSignal.signal, lastConfidence: snapshot.overallSignal.confidence,
@@ -365,6 +370,10 @@ async function runTick() {
     const best = fireCandidates[0];
     await fireTrade(best.symbol, best.snapshot, best.dataSourceLabel);
   }
+
+  // Fill in +15/+30/+60 min outcomes for signals that have aged enough.
+  const { resolveSignalOutcomes } = await import("./signal-log");
+  await resolveSignalOutcomes();
 }
 
 async function tick() {
