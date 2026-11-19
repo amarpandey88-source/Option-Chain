@@ -180,6 +180,7 @@ export default function Home() {
     symbol: string; sentiment: string; rationale: string; regime?: string;
     journalStatus: "saving" | "saved" | "failed";
     slMovedToBreakeven: boolean;
+    smartFactors?: Record<string, number>;
   } | null>(null);
 
   const queryClient = useQueryClient();
@@ -333,8 +334,8 @@ export default function Home() {
   // (which isn't finished being declared yet at the time this function is
   // defined, a real temporal-dead-zone hazard the earlier plain
   // self-reference had).
-  const saveTradeToJournal = useCallback(function trySave(p: { id: string; symbol: string; action: "BUY CE" | "BUY PE"; strike: number; entry: number; stopLoss: number; target1: number; target2: number; target3: number; confidence: number; entrySpot: number; sentiment: string; rationale: string; regime?: string; expiry?: string }, attempt = 1) {
-    fetch("/api/trade-journal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alertId: p.id, symbol: p.symbol, action: p.action, optionType: p.action === "BUY CE" ? "CE" : "PE", strike: p.strike, entryPremium: p.entry, stopLoss: p.stopLoss, target1: p.target1, target2: p.target2, target3: p.target3, entrySpot: p.entrySpot, confidence: p.confidence, sentiment: p.sentiment, dataSource: data?.dataSource || "broker", expiryDate: p.expiry, regime: p.regime, rationale: p.rationale }) })
+  const saveTradeToJournal = useCallback(function trySave(p: { id: string; symbol: string; action: "BUY CE" | "BUY PE"; strike: number; entry: number; stopLoss: number; target1: number; target2: number; target3: number; confidence: number; entrySpot: number; sentiment: string; rationale: string; regime?: string; expiry?: string; smartFactors?: Record<string, number> }, attempt = 1) {
+    fetch("/api/trade-journal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alertId: p.id, symbol: p.symbol, action: p.action, optionType: p.action === "BUY CE" ? "CE" : "PE", strike: p.strike, entryPremium: p.entry, stopLoss: p.stopLoss, target1: p.target1, target2: p.target2, target3: p.target3, entrySpot: p.entrySpot, confidence: p.confidence, sentiment: p.sentiment, dataSource: data?.dataSource || "broker", expiryDate: p.expiry, regime: p.regime, smartFactors: p.smartFactors, rationale: p.rationale }) })
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -382,9 +383,10 @@ export default function Home() {
     const entryDelta = data?.greeks.delta ?? 0.5;
     const sentiment = data?.sentiment ?? "NEUTRAL";
     const rationale = event.reasoning;
-    setActiveTrade({ id: event.id, openedAt: event.ts, action: event.action, strike: event.strike, entryPremium: event.entry, stopLossPremium: event.stopLoss, target1Premium: event.target1, target2Premium: event.target2, target3Premium: event.target3, entrySpot, confidence: event.confidence, optionType: event.action === "BUY CE" ? "CE" : "PE", lotSize, entryDelta, symbol: event.symbol, sentiment, rationale, regime: data?.metrics.regime, journalStatus: "saving", slMovedToBreakeven: false });
+    const smartFactors = data?.smartSignal?.factors ? Object.fromEntries(data.smartSignal.factors.map(f => [f.key, f.score])) : undefined;
+    setActiveTrade({ id: event.id, openedAt: event.ts, action: event.action, strike: event.strike, entryPremium: event.entry, stopLossPremium: event.stopLoss, target1Premium: event.target1, target2Premium: event.target2, target3Premium: event.target3, entrySpot, confidence: event.confidence, optionType: event.action === "BUY CE" ? "CE" : "PE", lotSize, entryDelta, symbol: event.symbol, sentiment, rationale, regime: data?.metrics.regime, smartFactors, journalStatus: "saving", slMovedToBreakeven: false });
 
-    saveTradeToJournal({ id: event.id, symbol: event.symbol, action: event.action, strike: event.strike, entry: event.entry, stopLoss: event.stopLoss, target1: event.target1, target2: event.target2, target3: event.target3, confidence: event.confidence, entrySpot, sentiment, rationale, expiry: data?.recommendation.expiry, regime: data?.metrics.regime });
+    saveTradeToJournal({ id: event.id, symbol: event.symbol, action: event.action, strike: event.strike, entry: event.entry, stopLoss: event.stopLoss, target1: event.target1, target2: event.target2, target3: event.target3, confidence: event.confidence, entrySpot, sentiment, rationale, expiry: data?.recommendation.expiry, regime: data?.metrics.regime, smartFactors });
 
     // Fire-and-forget — Telegram delivery failing should never block or
     // affect the in-app alert flow above. Silently configured-or-not; the
@@ -688,7 +690,7 @@ export default function Home() {
                   journalStatus={activeTrade.journalStatus}
                   onRetryJournal={() => {
                     setActiveTrade(prev => prev ? { ...prev, journalStatus: "saving" } : prev);
-                    saveTradeToJournal({ id: activeTrade.id, symbol: activeTrade.symbol, action: activeTrade.action, strike: activeTrade.strike, entry: activeTrade.entryPremium, stopLoss: activeTrade.stopLossPremium, target1: activeTrade.target1Premium, target2: activeTrade.target2Premium, target3: activeTrade.target3Premium, confidence: activeTrade.confidence, entrySpot: activeTrade.entrySpot, sentiment: activeTrade.sentiment, rationale: activeTrade.rationale, regime: activeTrade.regime, expiry: data?.recommendation.expiry });
+                    saveTradeToJournal({ id: activeTrade.id, symbol: activeTrade.symbol, action: activeTrade.action, strike: activeTrade.strike, entry: activeTrade.entryPremium, stopLoss: activeTrade.stopLossPremium, target1: activeTrade.target1Premium, target2: activeTrade.target2Premium, target3: activeTrade.target3Premium, confidence: activeTrade.confidence, entrySpot: activeTrade.entrySpot, sentiment: activeTrade.sentiment, rationale: activeTrade.rationale, regime: activeTrade.regime, expiry: data?.recommendation.expiry, smartFactors: activeTrade.smartFactors });
                   }}
                   onClose={() => {
                   const exitSpot = data.metrics.spot;

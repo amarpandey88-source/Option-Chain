@@ -62,6 +62,8 @@ model TradeJournal {
   // existed won't have it — the performance dashboard's regime breakdown
   // simply excludes those older rows rather than guessing.
   regime          String?
+  // JSON {SMART_FACTOR_KEY: score -100..+100} at entry; feeds smart-weight-tuner.
+  smartFactors    String?
   status          String   @default("OPEN")
   exitSpot        Float?
   exitPremium     Float?

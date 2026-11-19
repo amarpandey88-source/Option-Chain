@@ -65,7 +65,7 @@ export function SmartSignalPanel({ smart }: { smart: SmartSignal }) {
                  <MinusCircle className="h-3.5 w-3.5 text-slate-500" />}
                 <span className="text-xs text-slate-200">{f.label}</span>
               </div>
-              <span className="text-[10px] font-mono text-slate-500">w {f.weight}%</span>
+              <span className="text-[10px] font-mono text-slate-500">w {f.weight}%{f.tuning ? <span className="text-cyan-400"> · tuned ×{f.tuning}</span> : null}</span>
             </div>
             <div className="mt-1 text-[11px] text-slate-400">{f.reason}</div>
             <div className="mt-1 text-[10px] font-mono text-slate-600">factor {f.score > 0 ? "+" : ""}{f.score} · contribution {f.contribution > 0 ? "+" : ""}{f.contribution}</div>

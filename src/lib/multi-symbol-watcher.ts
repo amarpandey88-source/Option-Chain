@@ -212,7 +212,7 @@ async function fireTrade(symbol: Symbol, snapshot: OptionChainSnapshot, dataSour
         alertId, symbol, action: rec.action, optionType: rec.optionType, strike: rec.strike,
         entryPremium: rec.entry, stopLoss: rec.stopLoss, target1: rec.target1, target2: rec.target2, target3: rec.target3,
         entrySpot: snapshot.metrics.spot, confidence: rec.confidence, sentiment: snapshot.sentiment,
-        dataSource: dataSourceLabel, expiryDate: rec.expiry, regime: snapshot.metrics.regime, rationale: rec.rationale,
+        dataSource: dataSourceLabel, expiryDate: rec.expiry, regime: snapshot.metrics.regime, smartFactors: Object.fromEntries(snapshot.smartSignal.factors.map(f => [f.key, f.score])), rationale: rec.rationale,
       }),
     });
     const data = await res.json();

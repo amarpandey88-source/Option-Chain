@@ -26,6 +26,7 @@ import { fetchFyersMarketData } from "./fyers-market-data";
 import { getDefaultExpiry, daysUntil } from "./expiry-utils";
 import { randomUUID, createHash } from "node:crypto";
 import { computeSmartSignal } from "./smart-signal-engine";
+import { getSmartWeightTuning } from "./smart-weight-tuner";
 import { ensureFyersMarketSubscriptions, getLatestFyersTick } from "./fyers-tick-stream";
 import https from "node:https";
 
@@ -901,6 +902,7 @@ export async function generateSnapshotBroker(symbol: Symbol, expiryOverride?: st
   });
 
   const smartSignal = computeSmartSignal({
+    weightMultipliers: (await getSmartWeightTuning()).multipliers,
     signals: ctx.signals,
     candidate: overallSignal.signal,
     pcr: cm.pcr,

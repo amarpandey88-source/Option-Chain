@@ -8,6 +8,17 @@ import {
 
 const updates = [
   {
+    version: "v1.0.22",
+    date: "19 Nov 2026",
+    title: "Smart Signal weights tuned from your journal",
+    items: [
+      "Every new trade now stores the Smart engine's per-factor scores at entry (including background-fired trades).",
+      "Smart Signal factor weights are automatically tuned from your own closed trades: factors that backed winning trades gain weight, factors that backed losing trades lose weight.",
+      "Tuning is conservative: needs 15+ closed trades with factor data, 8+ supporting trades per factor, and each weight stays between 0.6x and 1.4x. Older trades without factor data are ignored.",
+      "The Smart Signal panel shows a 'tuned ×' badge on any factor whose weight has been adjusted. Engine version is now smart-v1.1.",
+    ],
+  },
+  {
     version: "v1.0.21",
     date: "11 Nov 2026",
     title: "Trade Journal exit prices and charges",

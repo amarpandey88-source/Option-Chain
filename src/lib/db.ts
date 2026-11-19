@@ -105,6 +105,7 @@ export function ensureSchema(): Promise<void> {
         "dataSource" TEXT NOT NULL,
         "expiryDate" TEXT,
         "regime" TEXT,
+        "smartFactors" TEXT,
         "status" TEXT NOT NULL DEFAULT 'OPEN',
         "exitSpot" REAL,
         "exitPremium" REAL,
@@ -142,6 +143,11 @@ export function ensureSchema(): Promise<void> {
       // this same ALTER already having run once before).
       try {
         await db.$executeRawUnsafe(`ALTER TABLE "TradeJournal" ADD COLUMN "regime" TEXT`)
+      } catch {
+        // Column already exists — expected and fine on every run after the first.
+      }
+      try {
+        await db.$executeRawUnsafe(`ALTER TABLE "TradeJournal" ADD COLUMN "smartFactors" TEXT`)
       } catch {
         // Column already exists — expected and fine on every run after the first.
       }

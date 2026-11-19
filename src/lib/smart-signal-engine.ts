@@ -20,6 +20,8 @@ export interface SmartFactor {
   contribution: number; // weighted contribution
   status: "BULLISH" | "BEARISH" | "NEUTRAL" | "NO_DATA";
   reason: string;
+  /** Journal-learned weight multiplier (1 = untuned). */
+  tuning?: number;
 }
 
 export interface SmartSignal {
@@ -37,7 +39,7 @@ export interface SmartSignal {
   engineVersion: string;
 }
 
-const VERSION = "smart-v1.0";
+const VERSION = "smart-v1.1";
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const signedStatus = (score: number, min = 12): SmartFactor["status"] =>
   score > min ? "BULLISH" : score < -min ? "BEARISH" : "NEUTRAL";
@@ -91,6 +93,8 @@ export interface SmartSignalInput {
   atmCeOiChg: number;
   atmPeOiChg: number;
   sentiment: Sentiment;
+  /** Per-factor weight multipliers learned from the trade journal. */
+  weightMultipliers?: Partial<Record<SmartFactorKey, number>>;
 }
 
 export function computeSmartSignal(input: SmartSignalInput): SmartSignal {
@@ -181,6 +185,18 @@ export function computeSmartSignal(input: SmartSignalInput): SmartSignal {
       ? `${stability.consecutiveCount} consecutive matching signals.`
       : `Only ${stability.consecutiveCount} consecutive matching signal(s).`,
   ));
+
+  // Apply journal-learned weight multipliers (1.0 when untuned / not enough data).
+  if (input.weightMultipliers) {
+    for (const f of factors) {
+      const m = input.weightMultipliers[f.key];
+      if (m && m !== 1) {
+        f.weight = Number((f.weight * m).toFixed(2));
+        f.contribution = Number((f.score * f.weight / 100).toFixed(1));
+        f.tuning = m;
+      }
+    }
+  }
 
   // painShift is intentionally a small tie-breaker inside the PCR/OI family;
   // it must not dominate the core signal.

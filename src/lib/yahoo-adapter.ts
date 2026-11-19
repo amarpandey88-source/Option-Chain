@@ -1,6 +1,7 @@
 import { OptionChainRow, OptionChainSnapshot, Regime, Sentiment, SignalStability, Symbol, Timeframe, TimeframeSignal, TradeAction, TradeRecommendation, ATMGreeks } from "./types";
 import { getDefaultExpiry, daysUntil } from "./expiry-utils";
 import { computeSmartSignal } from "./smart-signal-engine";
+import { getSmartWeightTuning } from "./smart-weight-tuner";
 
 // NOTE on lot sizes / strike steps: exchanges revise these periodically via
 // circular (NSE rebased index lot sizes for the Jan-2026 series; BSE raised
@@ -735,6 +736,7 @@ export async function generateSnapshotYahoo(symbol: Symbol, expiryOverride?: str
   });
   const rec: TradeRecommendation = { action: os.signal, strike: entryStrike, optionType: os.signal === "BUY PE" ? "PE" : "CE", entry, stopLoss: sl, target1: t1, target2: t2, target3: t3, confidence: os.confidence, riskReward: rr, volume: volumeAtStrike, lowLiquidity, ltp: ltpAtStrike, rationale: os.signal === "WAIT" ? `Mixed signals. Real spot ${quote.spot.toFixed(2)} vs prev close ${quote.prevClose.toFixed(2)} (${((quote.spot - quote.prevClose) / quote.prevClose * 100).toFixed(2)}%). VIX ${quote.vix.toFixed(2)}.` : `Real spot ${quote.spot.toFixed(2)} (${((quote.spot - quote.prevClose) / quote.prevClose * 100).toFixed(2)}% vs prev close). ${os.timeframe} consensus ${os.signal} at ${os.confidence}%. RSI(5m) ${s5.rsi.toFixed(0)}, EMA ${s5.emaCross}. Smart flow ${smartFlow > 0 ? "+" : ""}${smartFlow}. Strike ${entryStrike} (${ITM_STRIKES_FOR_ENTRY} ITM of ATM ${atmStrike}) for higher delta. IV ${iv}%, ${daysToExpiry}d to expiry. Entry ₹${entry} (${usedRealLtp ? "real LTP" : "theoretical fair value — no real LTP yet"}). R:R 1:${rr}.${lowLiquidity ? ` ⚠ Low volume (${volumeAtStrike ?? 0}) at this strike.` : ""}`, expiry: expStr };
   const smartSignal = computeSmartSignal({
+    weightMultipliers: (await getSmartWeightTuning()).multipliers,
     signals: { "5min": s5, "15min": s15, "30min": s30 },
     candidate: os.signal,
     pcr: state.pcr,
