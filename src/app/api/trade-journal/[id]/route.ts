@@ -41,6 +41,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.pnlPercent !== undefined) u.pnlPercent = parseFloat(body.pnlPercent);
     if (body.durationSec !== undefined) u.durationSec = parseInt(body.durationSec, 10);
     if (body.exitReason) u.exitReason = body.exitReason;
+    // Breakeven trail: the stop may only be raised, and only while the trade is open.
+    if (body.stopLoss !== undefined && existing.status === "OPEN") {
+      const sl = parseFloat(body.stopLoss);
+      if (Number.isFinite(sl) && sl > existing.stopLoss) u.stopLoss = sl;
+    }
     if (body.status && body.status !== "OPEN") u.closedAt = new Date();
     const trade = await db.tradeJournal.update({ where: { id }, data: u });
     return NextResponse.json({ trade });

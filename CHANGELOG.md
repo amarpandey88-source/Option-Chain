@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.24] - 2026-11-25
+- Fixed: trades fired by the background watcher (the symbols not currently open on the dashboard) never got the breakeven stop-loss. They now follow the same rule as the dashboard: once premium covers 50% of the distance to Target 1, the SL moves to entry. The new SL is saved to the journal, you get a Telegram/desktop alert when it moves, and a breakeven exit is labelled as such.
+
 ## [1.0.23] - 2026-11-20
 - Added a signal log: every broker-mode signal (including ones the smart engine blocked) is now recorded with its factors, and its 15/30/60-minute outcome is filled in automatically, so signal accuracy can be measured.
 - Added /api/signal-log/stats for hit-rate breakdowns by smart verdict, quality, regime, hour, confidence band and blocker.

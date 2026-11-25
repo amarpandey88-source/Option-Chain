@@ -148,6 +148,48 @@ interface OpenTradeRecord {
   stopLoss: number; target1: number; entryPremium: number; openedAt: string;
 }
 
+// Breakeven SL trail — same rule the dashboard applies to the symbol being
+// viewed (page.tsx): once premium has covered 50% of the distance from entry
+// to Target 1, the stop-loss moves up to entry, so a trade that showed real
+// promise can no longer turn into a full loss. One-directional. The new SL is
+// persisted to the journal row (so it survives an app restart and every poll
+// re-reads it), and breakevenMoved guards against the tick stream and the
+// poll both announcing the same move.
+const breakevenMoved = new Set<string>();
+
+function isBreakevenActive(trade: OpenTradeRecord): boolean {
+  return breakevenMoved.has(trade.id) || trade.stopLoss >= trade.entryPremium;
+}
+
+function maybeMoveToBreakeven(symbol: Symbol, trade: OpenTradeRecord, premium: number): boolean {
+  if (isBreakevenActive(trade)) {
+    if (trade.stopLoss < trade.entryPremium) trade.stopLoss = trade.entryPremium; // stale copy read before the PATCH landed
+    return false;
+  }
+  if (!(trade.target1 > trade.entryPremium)) return false;
+  const halfway = trade.entryPremium + 0.5 * (trade.target1 - trade.entryPremium);
+  if (premium < halfway) return false;
+
+  // Mutate synchronously so the next tick (these can arrive many per second)
+  // already sees the new SL and doesn't repeat any of this.
+  breakevenMoved.add(trade.id);
+  trade.stopLoss = trade.entryPremium;
+
+  void (async () => {
+    try {
+      await fetch(`http://127.0.0.1:3000/api/trade-journal/${trade.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stopLoss: trade.entryPremium }),
+      });
+    } catch (err) {
+      console.error(`[multi-symbol-watcher] failed to persist breakeven SL for ${symbol}:`, err);
+    }
+    await sendTelegram(`🛡 <b>[Background] SL moved to breakeven: ${trade.action} ${symbol} ${trade.strike}</b>\n50% of target reached — SL now at entry (₹${trade.entryPremium})`);
+    await sendDesktopNotification(`[Background] SL moved to breakeven: ${symbol}`, `50% of target reached — SL now at entry (₹${trade.entryPremium})`);
+  })();
+  return true;
+}
+
 async function closeTrade(symbol: Symbol, trade: OpenTradeRecord, premium: number, exitReason: string, exitSpot: number) {
   releaseTickSubscription(symbol);
   const lotSize = LOT_SIZE[symbol];
@@ -155,10 +197,11 @@ async function closeTrade(symbol: Symbol, trade: OpenTradeRecord, premium: numbe
   const totalPnl = pnlPerLot * lotSize;
   const pnlPercent = (pnlPerLot / trade.entryPremium) * 100;
   const durationSec = Math.round((Date.now() - new Date(trade.openedAt).getTime()) / 1000);
+  const wasBreakeven = exitReason === "SL_HIT" && isBreakevenActive(trade);
   try {
     await fetch(`http://127.0.0.1:3000/api/trade-journal/${trade.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: exitReason, exitReason, exitPremium: premium, exitSpot, pnlPerLot, totalPnl, pnlPercent, durationSec }),
+      body: JSON.stringify({ status: exitReason, exitReason: wasBreakeven ? `Breakeven stop hit at premium ${premium.toFixed(0)} (SL had trailed to entry after 50% of target)` : exitReason, exitPremium: premium, exitSpot, pnlPerLot, totalPnl, pnlPercent, durationSec }),
     });
   } catch (err) {
     console.error(`[multi-symbol-watcher] failed to close trade for ${symbol}:`, err);
@@ -166,9 +209,11 @@ async function closeTrade(symbol: Symbol, trade: OpenTradeRecord, premium: numbe
   }
   status[symbol].openTradeId = null;
   status[symbol].openTradePremium = null;
-  const emoji = exitReason === "SL_HIT" ? "🔻" : exitReason === "TARGET1_HIT" ? "🎯" : "⏰";
-  await sendTelegram(`${emoji} <b>[Background] ${exitReason.replace("_", " ")}: ${trade.action} ${symbol} ${trade.strike}</b>\nExited at ~₹${premium.toFixed(0)} (P&L ₹${totalPnl.toFixed(0)})`);
-  await sendDesktopNotification(`[Background] ${exitReason.replace("_", " ")}: ${symbol}`, `Exited at ~₹${premium.toFixed(0)} (P&L ₹${totalPnl.toFixed(0)})`);
+  breakevenMoved.delete(trade.id);
+  const emoji = wasBreakeven ? "⚪" : exitReason === "SL_HIT" ? "🔻" : exitReason === "TARGET1_HIT" ? "🎯" : "⏰";
+  const label = wasBreakeven ? "BREAKEVEN SL HIT" : exitReason.replace("_", " ");
+  await sendTelegram(`${emoji} <b>[Background] ${label}: ${trade.action} ${symbol} ${trade.strike}</b>\nExited at ~₹${premium.toFixed(0)} (P&L ₹${totalPnl.toFixed(0)})`);
+  await sendDesktopNotification(`[Background] ${label}: ${symbol}`, `Exited at ~₹${premium.toFixed(0)} (P&L ₹${totalPnl.toFixed(0)})`);
 }
 
 // Subscribes to real-time ticks for a background-fired trade's exact
@@ -192,6 +237,7 @@ function ensureTickSubscription(symbol: Symbol, trade: OpenTradeRecord, chain: O
     // enough approximation for the journal's record-keeping field; it
     // isn't used in any P&L math (that's entirely premium-based).
     const approxSpot = status[symbol].lastKnownSpot ?? 0;
+    maybeMoveToBreakeven(symbol, trade, t.ltp);
     if (t.ltp <= trade.stopLoss) {
       closeTrade(symbol, trade, t.ltp, "SL_HIT", approxSpot);
     } else if (t.ltp >= trade.target1) {
@@ -252,6 +298,7 @@ async function checkOpenTrade(symbol: Symbol, snapshot: OptionChainSnapshot) {
     // brokers and Yahoo mode, where ensureTickSubscription is a no-op) —
     // for Fyers, the tick subscription above usually catches a cross
     // first, and this poll just double-checks nothing was missed.
+    maybeMoveToBreakeven(symbol, openTrade, premium);
     let exitReason: string | null = null;
     if (premium <= openTrade.stopLoss) exitReason = "SL_HIT";
     else if (premium >= openTrade.target1) exitReason = "TARGET1_HIT";
