@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.25] - 2026-11-26
+- Re-release of 1.0.24. The 1.0.24 GitHub Release was published by hand before the Windows build finished, so it has no installer or update file and the in-app updater can't use it. Contains the same fix: background-watcher trades now get the breakeven stop-loss (SL moves to entry at 50% of Target 1).
+
 ## [1.0.24] - 2026-11-25
 - Fixed: trades fired by the background watcher (the symbols not currently open on the dashboard) never got the breakeven stop-loss. They now follow the same rule as the dashboard: once premium covers 50% of the distance to Target 1, the SL moves to entry. The new SL is saved to the journal, you get a Telegram/desktop alert when it moves, and a breakeven exit is labelled as such.
 
