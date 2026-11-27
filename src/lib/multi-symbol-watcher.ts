@@ -2,6 +2,7 @@ import type { Symbol, OptionChainSnapshot } from "./types";
 import { isBrokerConfigured, getBrokerConfig } from "./broker-adapter";
 import { subscribeFyersTick } from "./fyers-tick-stream";
 import { isPastNewEntryCutoff } from "./market-hours";
+import { buildEntryContext } from "./trade-reference-core";
 
 // ============================================================================
 // Multi-symbol background watcher
@@ -258,7 +259,7 @@ async function fireTrade(symbol: Symbol, snapshot: OptionChainSnapshot, dataSour
         alertId, symbol, action: rec.action, optionType: rec.optionType, strike: rec.strike,
         entryPremium: rec.entry, stopLoss: rec.stopLoss, target1: rec.target1, target2: rec.target2, target3: rec.target3,
         entrySpot: snapshot.metrics.spot, confidence: rec.confidence, sentiment: snapshot.sentiment,
-        dataSource: dataSourceLabel, expiryDate: rec.expiry, regime: snapshot.metrics.regime, smartFactors: Object.fromEntries(snapshot.smartSignal.factors.map(f => [f.key, f.score])), rationale: rec.rationale,
+        dataSource: dataSourceLabel, expiryDate: rec.expiry, regime: snapshot.metrics.regime, smartFactors: Object.fromEntries(snapshot.smartSignal.factors.map(f => [f.key, f.score])), entryContext: buildEntryContext(snapshot), rationale: rec.rationale,
       }),
     });
     const data = await res.json();
@@ -356,13 +357,19 @@ async function runTick() {
     try {
       const { generateSnapshotBroker } = await import("./broker-adapter");
       const { getConfiguredBroker } = await import("./broker-adapter");
-      const snapshot = await generateSnapshotBroker(symbol);
+      const rawSnapshot = await generateSnapshotBroker(symbol);
       const dataSourceLabel = `broker-${getConfiguredBroker()}`;
 
-      // Record the signal state for accuracy measurement (signal-log.ts),
+      // Record the RAW signal state for accuracy measurement (signal-log.ts),
       // whether or not it ends up firing a trade below.
       const { logSignal } = await import("./signal-log");
-      void logSignal(snapshot, dataSourceLabel, "watcher");
+      void logSignal(rawSnapshot, dataSourceLabel, "watcher");
+
+      // Same learning layers the dashboard applies (confidence calibration,
+      // situational nudge, trade reference). Background trades previously
+      // skipped these entirely. Returns the snapshot unchanged on any error.
+      const { applyAdaptiveConfidence } = await import("./adaptive-confidence");
+      const snapshot = await applyAdaptiveConfidence(rawSnapshot);
 
       status[symbol] = {
         ...status[symbol], lastCheckedAt: Date.now(),

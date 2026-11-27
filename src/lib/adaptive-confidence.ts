@@ -18,6 +18,8 @@ import type { OptionChainSnapshot } from "./types";
 //  2. Situational nudge (below) — on top of the now-calibrated number,
 //     asks whether THIS specific (action, regime) combination in
 //     particular has been running hotter or colder than its band overall.
+//  3. Trade reference (src/lib/trade-reference-core.ts) — the same question
+//     for the entry context (time of day, VIX band, smart-signal quality).
 //
 // Both stages are deliberately conservative:
 //  - Each needs its own MIN_SAMPLE_SIZE closed trades before touching
@@ -71,6 +73,15 @@ export async function applyAdaptiveConfidence(snapshot: OptionChainSnapshot): Pr
       }
       confidence += delta;
     }
+
+    // Stage 3: trade reference — has this kind of context (time of day, VIX
+    // band, smart-signal quality) been winning more or less than average in
+    // the journal's own closed trades? Inactive until enough trades carry
+    // context; bounded and shrunk (see trade-reference-core.ts).
+    const { getReference } = await import("./trade-reference");
+    const { buildEntryContext, referenceAdjustment } = await import("./trade-reference-core");
+    const adj = referenceAdjustment(buildEntryContext(snapshot), await getReference());
+    if (adj.delta !== 0) { confidence += adj.delta; notes.push(...adj.notes); }
 
     if (notes.length === 0) return snapshot;
 

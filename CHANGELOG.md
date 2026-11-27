@@ -20,6 +20,9 @@ exact same thing.
 Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
+- Every fired trade now stores the market context it was opened in (time of day, VIX, PCR, GEX, IV, regime, smart-signal quality, stability, reward:risk). Once 40+ closed broker-mode trades carry context, confidence gets a small bounded nudge from how similar past trades did (time-of-day band, VIX band, signal quality): -5 for a clearly losing bucket, +3 for a clearly winning one, never more than -10/+5 in total. Nothing changes before that.
+- Background-watcher trades now go through the same learning layers (confidence calibration, situational nudge, trade reference) as the dashboard. Before, they skipped them.
+- Added /api/trade-reference/stats to see what the app has learned so far.
 
 ## [1.0.25] - 2026-11-26
 - Re-release of 1.0.24. The 1.0.24 GitHub Release was published by hand before the Windows build finished, so it has no installer or update file and the in-app updater can't use it. Contains the same fix: background-watcher trades now get the breakeven stop-loss (SL moves to entry at 50% of Target 1).

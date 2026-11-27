@@ -134,6 +134,13 @@ export function ensureSchema(): Promise<void> {
         PRIMARY KEY ("symbol", "dataSource", "metric", "capturedAt")
       )`)
       await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "MarketHistory_lookup_idx" ON "MarketHistory"("symbol", "dataSource", "metric", "capturedAt")`)
+      // Trade reference: the market context each fired trade was opened in,
+      // joined to TradeJournal by alertId (see src/lib/trade-reference.ts).
+      await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "TradeContext" (
+        "alertId" TEXT NOT NULL PRIMARY KEY,
+        "context" TEXT NOT NULL,
+        "recordedAt" TEXT NOT NULL
+      )`)
       // Signal log: every snapshot's signal state + what spot did afterwards
       // (see src/lib/signal-log.ts). Outcome columns are filled in later.
       await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SignalLog" (

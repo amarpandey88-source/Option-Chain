@@ -127,6 +127,14 @@ export async function POST(req: NextRequest) {
     const existing = await db.tradeJournal.findUnique({ where: { alertId: body.alertId } });
     if (existing) return NextResponse.json({ trade: existing, duplicate: true });
     const trade = await db.tradeJournal.create({ data: { alertId: body.alertId, symbol: body.symbol, action: body.action, optionType: body.optionType, strike: parseInt(body.strike, 10), entryPremium: parseFloat(body.entryPremium), stopLoss: parseFloat(body.stopLoss), target1: parseFloat(body.target1), target2: parseFloat(body.target2), target3: parseFloat(body.target3), entrySpot: parseFloat(body.entrySpot), confidence: parseInt(body.confidence, 10), sentiment: body.sentiment, dataSource: body.dataSource || "unknown", expiryDate: body.expiryDate || null, regime: body.regime || null, smartFactors: body.smartFactors ? JSON.stringify(body.smartFactors) : null, rationale: body.rationale, status: "OPEN" } });
+    // Best-effort: remember the market context this trade opened in, for the
+    // trade-reference learning. A failure here must never fail the journal save.
+    if (body.entryContext && typeof body.entryContext === "object") {
+      try {
+        const { recordTradeContext } = await import("@/lib/trade-reference");
+        await recordTradeContext(trade.alertId, body.entryContext);
+      } catch (e) { console.error("[trade-journal POST] entryContext not recorded:", e); }
+    }
     return NextResponse.json({ trade, created: true });
   } catch (err: any) { console.error("[trade-journal POST] error:", err); return NextResponse.json({ error: err?.message || String(err) || "Failed" }, { status: 500 }); }
 }
