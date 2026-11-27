@@ -21,6 +21,9 @@ Format per entry: `## [version] - YYYY-MM-DD` followed by a bullet list.
 
 ## [Unreleased]
 
+## [1.0.27] - 2026-11-27
+- Trade Journal: hover over a trade's symbol to see its values: entry/SL/targets, confidence, the market at entry (time, VIX, PCR, GEX, IV, signal quality, reward:risk), the signal factors, and the exit details. Trades opened before 1.0.26 show what was saved at the time and note that entry context wasn't recorded.
+
 ## [1.0.26] - 2026-11-27
 - Every fired trade now stores the market context it was opened in (time of day, VIX, PCR, GEX, IV, regime, smart-signal quality, stability, reward:risk). Once 40+ closed broker-mode trades carry context, confidence gets a small bounded nudge from how similar past trades did (time-of-day band, VIX band, signal quality): -5 for a clearly losing bucket, +3 for a clearly winning one, never more than -10/+5 in total. Nothing changes before that.
 - Background-watcher trades now go through the same learning layers (confidence calibration, situational nudge, trade reference) as the dashboard. Before, they skipped them.

@@ -110,7 +110,24 @@ export async function GET(req: NextRequest) {
     const winRate = closed.length > 0 ? (wins.length / closed.length) * 100 : 0;
     const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + (t.netPnl ?? 0), 0) / wins.length : 0;
     const avgLoss = losses.length > 0 ? losses.reduce((s, t) => s + (t.netPnl ?? 0), 0) / losses.length : 0;
-    return NextResponse.json({ trades, stats: { total: allTrades.length, open: allTrades.filter(t => t.status === "OPEN").length, closed: closed.length, wins: wins.length, losses: losses.length, winRate: Number(winRate.toFixed(1)), totalPnl: Number(totalPnl.toFixed(2)), avgWin: Number(avgWin.toFixed(2)), avgLoss: Number(avgLoss.toFixed(2)) } });
+    // Attach the market context recorded when each trade opened (for the
+    // journal's hover card). Best-effort: any failure just means no context.
+    let tradesOut: any[] = trades;
+    try {
+      if (trades.length > 0) {
+        const ids = trades.map(t => t.alertId);
+        const ctxRows = await db.$queryRawUnsafe<{ alertId: string; context: string }[]>(
+          `SELECT "alertId", "context" FROM "TradeContext" WHERE "alertId" IN (${ids.map(() => "?").join(",")})`, ...ids);
+        const byId = new Map<string, string>(ctxRows.map(r => [r.alertId, r.context] as [string, string]));
+        tradesOut = trades.map(t => {
+          let entryContext: unknown = null;
+          const raw = byId.get(t.alertId);
+          if (raw) { try { entryContext = JSON.parse(raw); } catch { /* ignore malformed */ } }
+          return { ...t, entryContext };
+        });
+      }
+    } catch (e) { console.error("[trade-journal GET] entry context not attached:", e); }
+    return NextResponse.json({ trades: tradesOut, stats: { total: allTrades.length, open: allTrades.filter(t => t.status === "OPEN").length, closed: closed.length, wins: wins.length, losses: losses.length, winRate: Number(winRate.toFixed(1)), totalPnl: Number(totalPnl.toFixed(2)), avgWin: Number(avgWin.toFixed(2)), avgLoss: Number(avgLoss.toFixed(2)) } });
   } catch (err: any) {
     console.error("[trade-journal GET] error:", err);
     return NextResponse.json({ error: err?.message || String(err) || "Failed to load trade journal" }, { status: 500 });

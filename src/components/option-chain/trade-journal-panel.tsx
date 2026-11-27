@@ -10,10 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TrendingUp, TrendingDown, Trash2, History, RefreshCw, LogOut, Filter, FileSpreadsheet, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getDefaultExpiry } from "@/lib/expiry-utils";
 import { estimateFyersOptionsCharges } from "@/lib/fyers-options-charges";
 import type { OptionChainRow, Symbol } from "@/lib/types";
+import { TradeHoverCard } from "@/components/option-chain/trade-hover-card";
+import type { EntryContext } from "@/lib/trade-reference-core";
 
 interface TradeEntry {
   id: string; alertId: string; symbol: string; action: string; optionType: string; strike: number;
@@ -23,6 +25,7 @@ interface TradeEntry {
   chargesEstimated?: boolean;
   pnlPercent: number | null; durationSec: number | null; exitReason: string | null;
   openedAt: string; closedAt: string | null; dataSource: string; expiryDate: string | null;
+  regime?: string | null; smartFactors?: string | null; entryContext?: EntryContext | null;
 }
 interface TradeStats { total: number; open: number; closed: number; wins: number; losses: number; winRate: number; totalPnl: number; avgWin: number; avgLoss: number; }
 
@@ -406,12 +409,35 @@ function TradeRow({ trade, sno, onExitClick, liveLtp }: { trade: TradeEntry; sno
     ? isTradeExpired(trade) ? 0 : liveLtp ?? trade.exitPremium ?? undefined
     : trade.exitPremium ?? liveLtp;
   const ltpUp = ltpValue != null && ltpValue >= trade.entryPremium;
+
+  // Hover card with the trade's recorded values. Opens after a short delay
+  // (so sweeping the mouse down the table doesn't flicker), stays open while
+  // the pointer is on the card itself, closes shortly after it leaves both.
+  const [showCard, setShowCard] = useState(false);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const enterCard = () => {
+    clearTimeout(closeTimer.current);
+    clearTimeout(openTimer.current);
+    openTimer.current = setTimeout(() => setShowCard(true), 250);
+  };
+  const leaveCard = () => {
+    clearTimeout(openTimer.current);
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setShowCard(false), 150);
+  };
+  useEffect(() => () => { clearTimeout(openTimer.current); clearTimeout(closeTimer.current); }, []);
+
   return (
-    <tr className={cn("border-b border-[#1c2530]/60 hover:bg-[#0a0e14]/60", isOpen && "bg-cyan-500/[0.03]")}>
+    <tr onMouseEnter={enterCard} onMouseLeave={leaveCard} className={cn("border-b border-[#1c2530]/60 hover:bg-[#0a0e14]/60", isOpen && "bg-cyan-500/[0.03]")}>
       <td className="py-2 pr-2 text-slate-500">{sno}</td>
       <td className="py-2 pr-2 text-slate-400">{dateStr}</td>
       <td className="py-2 pr-2 text-slate-400">{timeStr}</td>
-      <td className="py-2 pr-2 text-slate-300">{trade.symbol}</td>
+      <td className="py-2 pr-2 text-slate-300">
+        <TradeHoverCard trade={trade} open={showCard} onOpenChange={setShowCard} onEnter={enterCard} onLeave={leaveCard}>
+          <span className="cursor-help underline decoration-dotted decoration-slate-600 underline-offset-2">{trade.symbol}</span>
+        </TradeHoverCard>
+      </td>
       <td className="py-2 pr-2 text-right text-amber-300 font-semibold">{trade.strike}</td>
       <td className="py-2 pr-2">
         <span className={cn("inline-flex items-center gap-1 font-bold", isBull ? "text-emerald-300" : "text-rose-300")}>
